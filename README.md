@@ -1,6 +1,6 @@
-# clinic-crm
+# dentistry
 
-Multi-tenant Dental Clinic CRM & Dashboard.
+CRM for medical clinics and hospitals — multi-tenant dental clinic CRM & dashboard.
 
 - **Frontend:** React 19 + Vite + TanStack Router/Query + Tailwind + shadcn/ui (bun)
 - **Backend:** FastAPI + SQLAlchemy 2.0 + Alembic + Pydantic v2 (uv)
