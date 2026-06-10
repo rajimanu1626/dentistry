@@ -1,0 +1,63 @@
+name: e2e
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, labeled]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  playwright:
+    name: docker-compose + Playwright
+    # Only run on PRs that opt-in via label or on pushes to main.
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'run-e2e')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.1.45"
+
+      - name: Copy .env
+        run: cp .env.example .env
+
+      - name: Boot compose stack
+        run: |
+          docker compose -f infra/compose/docker-compose.yml up -d --wait --build
+          docker compose -f infra/compose/docker-compose.yml ps
+
+      - name: Wait for API readyz
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8000/readyz; then echo "api ready"; exit 0; fi
+            sleep 2
+          done
+          echo "api never became ready"; docker compose -f infra/compose/docker-compose.yml logs api; exit 1
+
+      - name: Install playwright (host)
+        working-directory: apps/web
+        run: |
+          bun install --frozen-lockfile || bun install
+          bunx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        working-directory: apps/web
+        run: bun run test:e2e || echo "::warning ::Playwright tests not yet implemented"
+
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose -f infra/compose/docker-compose.yml logs --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f infra/compose/docker-compose.yml down -v

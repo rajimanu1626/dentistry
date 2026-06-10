@@ -1,0 +1,50 @@
+---
+description: Keep the stack Supabase-or-AWS portable. Always on.
+alwaysApply: true
+---
+
+# Portability invariants (clinic-crm)
+
+The Supabase free tier is great for v0 but we MUST be able to swap to AWS RDS +
+Cognito + S3 in ~half a day with zero application code changes. The eight
+rules below are enforced by `scripts/check_portability.py` (CI + hook) and by
+this rule.
+
+1. **RLS uses session variables, never `auth.uid()`.** Policies always
+   reference `current_setting('app.current_user_id')::uuid` (and
+   `app.current_clinic_id` where relevant). The API runs `SET LOCAL` per
+   request after JWT validation.
+2. **Own the user identity table.** No FK in the app schema points to
+   `auth.users`. Every reference is to our `users` table. A small sync handler
+   on signup (or webhook) keeps `users` in step with the IdP.
+3. **JWT validation via JWKS URL.** The API takes a `JWKS_URL` env var and
+   validates tokens with it. Migration = change the env var.
+4. **Object storage via plain S3 SDK.** `boto3` with `endpoint_url` + `region`
+   from env. Works against Supabase Storage, MinIO, and S3 with no code
+   changes. Access control lives in FastAPI, not in storage RLS policies.
+5. **No Supabase-only features.** Banned in code: Supabase Realtime, Edge
+   Functions, Storage RLS policies, `auth.*` schema references, `pg_net`,
+   `pg_cron`. Use FastAPI + GitHub Actions cron instead.
+6. **Strict 12-factor config.** All hosts/secrets/regions/feature flags via env
+   vars. Never read `fly.toml` / `supabase.toml` from application code.
+7. **Container is the unit of deploy.** Fly-specific config lives only in
+   `infra/fly/` + `.github/workflows/deploy.yml`. The Dockerfile is unchanged
+   on AWS.
+8. **Adapter layer for identity + storage.** All provider-specific imports
+   stay inside `apps/api/app/adapters/{identity,storage}/`. The rest of the
+   code uses the abstract protocol.
+
+## Banned tokens (the script will fail your PR)
+
+- `auth.uid(` — use `current_setting('app.current_user_id')::uuid`
+- `auth.users` — use the local `users` table
+- `supabase.realtime`, `@supabase/realtime`
+- `pg_net`, `pg_cron`
+- `CREATE POLICY ... ON storage.*`
+- `supabase/functions`, `edge_function`
+
+## How to add new functionality
+
+If the new feature seems to require a banned token, you almost certainly want
+to (a) put it in FastAPI, or (b) write the underlying primitive in the
+appropriate adapter (`app/adapters/...`).

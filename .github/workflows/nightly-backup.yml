@@ -1,0 +1,59 @@
+name: nightly-backup
+
+on:
+  schedule:
+    - cron: "30 18 * * *"   # 18:30 UTC = 00:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pg_dump:
+    name: encrypted pg_dump → object storage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pg client + gpg + restic
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            postgresql-client gnupg2 awscli
+
+      - name: Dump
+        env:
+          DATABASE_URL_SYNC: ${{ secrets.DATABASE_URL_SYNC }}
+          GPG_RECIPIENT: ${{ secrets.BACKUP_GPG_RECIPIENT }}
+          GPG_PUBLIC_KEY: ${{ secrets.BACKUP_GPG_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ./_bkp
+          ts=$(date -u +%Y%m%dT%H%M%SZ)
+          fname="clinic-crm-${ts}.dump"
+          pg_dump "$DATABASE_URL_SYNC" \
+            --format=custom --no-owner --no-acl --compress=9 \
+            > ./_bkp/$fname
+          echo "$GPG_PUBLIC_KEY" | gpg --batch --import
+          gpg --batch --yes --trust-model always \
+              --recipient "$GPG_RECIPIENT" \
+              --encrypt --output ./_bkp/${fname}.gpg ./_bkp/$fname
+          shred -u ./_bkp/$fname
+          echo "BACKUP_FILE=./_bkp/${fname}.gpg" >> $GITHUB_ENV
+
+      - name: Upload to S3-compatible backup bucket
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET }}
+          AWS_ENDPOINT_URL: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_S3_REGION }}
+          BACKUP_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+        run: |
+          aws s3 cp --endpoint-url "$AWS_ENDPOINT_URL" \
+            "$BACKUP_FILE" "s3://$BACKUP_BUCKET/$(basename $BACKUP_FILE)"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Nightly backup failed — check the runbook at infra/runbooks/restore-db.md"

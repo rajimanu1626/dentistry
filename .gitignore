@@ -1,0 +1,58 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Node / Bun
+node_modules/
+bun.lockb
+dist/
+build/
+.vite/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Python / uv
+.venv/
+apps/api/.local_credentials.json
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Docker
+.docker/
+
+# Playwright
+playwright-report/
+test-results/
+playwright/.cache/
+
+# Logs
+*.log
+logs/
+
+# Misc
+.cache/
+.tmp/
+tmp/
+*.local

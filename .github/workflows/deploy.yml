@@ -1,0 +1,83 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_migrations:
+        description: "Run alembic upgrade head before deploying API"
+        required: true
+        default: "false"
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: alembic upgrade head (manually gated)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_migrations == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production-db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.18"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        working-directory: apps/api
+        run: uv sync --frozen || uv sync
+      - name: Run migrations
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_SYNC: ${{ secrets.DATABASE_URL_SYNC }}
+        run: uv run alembic upgrade head
+
+  deploy_api:
+    name: Fly deploy (API)
+    needs: [migrate]
+    if: always() && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: production-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl deploy \
+            --config infra/fly/fly.toml \
+            --dockerfile infra/docker/api.Dockerfile \
+            --remote-only
+
+  deploy_web:
+    name: Cloudflare Pages deploy (web)
+    needs: [deploy_api]
+    runs-on: ubuntu-latest
+    environment: production-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.1.45"
+      - run: bun install --frozen-lockfile || bun install
+      - name: Build
+        working-directory: apps/web
+        env:
+          VITE_API_BASE_URL: ${{ secrets.PROD_API_BASE_URL }}
+        run: bun run build
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/web/dist --project-name=clinic-crm-web
