@@ -19,7 +19,7 @@ COPY packages ./packages
 RUN bun install --frozen-lockfile || bun install
 
 COPY apps/web ./apps/web
-COPY tsconfig.base.json ./tsconfig.base.json 2>/dev/null || true
+COPY tsconfig.base.json* ./
 
 WORKDIR /work/apps/web
 RUN bun run build
