@@ -1,0 +1,106 @@
+name: pr
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pr-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  portability:
+    name: portability invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run portability check
+        run: python3 scripts/check_portability.py
+
+  api:
+    name: api lint + typecheck + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_ENV: test
+      PHI_ENCRYPTION_KEY: ${{ secrets.CI_PHI_KEY || 'ci-phi-key-32-bytes-padding-padding' }}
+      EXTERNAL_SHARE_HMAC_SECRET: ci-hmac-secret-32-bytes-padding-pad
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.18"
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install OS deps for WeasyPrint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b \
+            libcairo2 libgdk-pixbuf-2.0-0 shared-mime-info \
+            fonts-dejavu-core
+
+      - name: Install Python deps
+        working-directory: apps/api
+        run: uv sync --frozen || uv sync
+
+      - name: Ruff
+        working-directory: apps/api
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        working-directory: apps/api
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        working-directory: apps/api
+        run: uv run mypy app || echo "::warning ::mypy emitted issues — wire up over time"
+
+      - name: Pytest (unit)
+        working-directory: apps/api
+        run: uv run pytest tests/unit -q --cov=app --cov-report=term-missing
+
+      - name: Pytest (integration + RLS, testcontainers Postgres)
+        working-directory: apps/api
+        run: uv run pytest tests/integration tests/rls -q
+
+      - name: Auth/patient regression smoke
+        working-directory: apps/api
+        run: uv run pytest tests/integration/test_auth_signup_policy.py -q
+
+  web:
+    name: web lint + typecheck + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.1.45"
+      - name: Install
+        run: bun install --frozen-lockfile || bun install
+      - name: Biome
+        working-directory: apps/web
+        run: bun run lint
+      - name: TypeScript
+        working-directory: apps/web
+        run: bun run typecheck
+      - name: Vitest
+        working-directory: apps/web
+        run: bun run test

@@ -1,0 +1,49 @@
+---
+description: React + TanStack patterns + API access policy.
+globs: apps/web/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Web conventions
+
+## API access
+
+All HTTP traffic goes through `src/lib/api.ts`. No `fetch(...)` or
+`axios(...)` calls anywhere else in the codebase. This single seam is where
+auth headers, `X-Clinic-Id`, and the global error model are normalised.
+
+```ts
+// ❌ BAD
+const res = await fetch('/api/patients');
+
+// ✅ GOOD
+import { apiClient } from '@/lib/api';
+const data = await apiClient.get<PatientPage>('/patients');
+```
+
+## Server state
+
+- Read paths use `useQuery` from `@tanstack/react-query`.
+- Writes use `useMutation`; on success, `invalidateQueries` (don't manually
+  patch the cache unless you must).
+- Keys are arrays starting with the resource: `['patients', { page }]`,
+  `['patient', patientId]`.
+
+## Routing
+
+File-based routes under `src/routes/`. The TanStack Vite plugin regenerates
+`src/routeTree.gen.ts` on save. Don't hand-edit unless you also touch the
+matching route files.
+
+## PHI
+
+- Never put patient names, phone numbers, or other PHI in URL params, query
+  strings, or analytics events.
+- Avoid storing patient data in `localStorage`. Tokens + selected `clinic_id`
+  are fine; patient rows are not.
+
+## Components & styling
+
+- Tailwind utility classes + `cn()` helper from `@/lib/cn`.
+- Reusable bits go in `src/components/`. Pages live in `src/routes/`.
+- Functional components only. Custom hooks for cross-component logic.

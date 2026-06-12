@@ -1,0 +1,67 @@
+---
+description: Patient sharing security rules — internal + external.
+globs: apps/api/app/sharing/**/*.py
+alwaysApply: false
+---
+
+# Sharing invariants
+
+Patient sharing is the highest-risk surface in the app. These rules are
+hard requirements; CI tests enforce them.
+
+## External share links
+
+- **Token in the URL is 32-byte URL-safe random.** The DB stores
+  `HMAC-SHA256(token, EXTERNAL_SHARE_HMAC_SECRET)`. A leaked DB without the
+  HMAC secret is useless for replaying tokens.
+- **Password is argon2id hashed.** Never plain, never bcrypt, never MD5.
+- **5 failed unlock attempts → `revoked_at = now()`**. The share is dead.
+  An audit row is written for each failure with the attempt number.
+- **`max_views` is enforced server-side on every unlock.** Default 5.
+- **Expiry default 24h, max 7d.** Anything older returns HTTP 410.
+- **Unlock returns a scoped JWT** (`extra={"scope":"external_share","share_id":...}`)
+  that is ONLY accepted by `/share/*` endpoints. It does NOT grant tenant access.
+- **Watermark every rendered PDF** with recipient label + share id + UTC
+  timestamp (`watermark_for(share)`).
+- **Rate-limit unlock endpoint** to ≤10/min per IP via slowapi.
+- **Constant-time comparison** when looking up by token (`constant_time_equals`).
+- **HTML responses** must set `X-Robots-Tag: noindex, nofollow`,
+  `Referrer-Policy: no-referrer`, `Cache-Control: no-store`.
+
+## Internal shares (doctor → doctor)
+
+- **Grantee must be an existing platform user.** Don't auto-invite via email.
+- **Default expiry 30 days, hard max 365.** Anything longer rejected at the
+  schema layer.
+- **Roles**: `viewer` (read-only) or `contributor` (can add visits/notes; the
+  added rows still carry `clinic_id` of the source clinic).
+- **Revoke is `DELETE /patient-shares/{id}`** → sets `revoked_at`. Access
+  evaporates immediately because RLS policies include `revoked_at IS NULL`.
+- **RLS extension**: tenant tables already include
+  `OR EXISTS (SELECT 1 FROM patient_shares ...)` so no service-layer
+  membership query is required for sharing reads.
+
+## Audit
+
+Every share lifecycle event lands in `audit_log`:
+
+- `patient_share_created` / `patient_share_revoked`
+- `external_share_created` / `external_share_viewed`
+- `external_share_failed_unlock` / `external_share_revoked`
+
+## What NOT to do
+
+```python
+# ❌ store the raw token
+row.token = raw_token
+
+# ❌ bcrypt or sha256 the password
+row.password_hash = sha256(p).hexdigest()
+
+# ❌ skip the lockout
+if not verify_password(password, row.password_hash):
+    raise UnauthorizedError("Wrong password.")  # ← also bump failed_attempts!
+
+# ❌ render an external PDF without a watermark
+pdf = render_pdf(template, context=ctx)
+```

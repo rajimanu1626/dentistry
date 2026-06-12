@@ -1,0 +1,14 @@
+{
+  "name": "@clinic-crm/shared-types",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "generate": "openapi-typescript ../../apps/api/openapi.json -o ./src/generated/schema.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.5.0"
+  }
+}

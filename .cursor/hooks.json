@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/portability-check.sh",
+        "matcher": "Write",
+        "failClosed": false,
+        "timeout": 15
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": ".cursor/hooks/precheck.sh",
+        "failClosed": false,
+        "timeout": 10
+      }
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+---
+description: FastAPI router patterns + DI + error model.
+globs: apps/api/**/*.py
+alwaysApply: false
+---
+
+# API conventions
+
+## Layering
+
+- `app/routers/`  — thin, validates input, returns Pydantic models
+- `app/services/` — business logic; takes `AsyncSession`, no FastAPI imports
+- `app/models/`   — SQLAlchemy ORM
+- `app/schemas/`  — Pydantic request/response DTOs
+- `app/adapters/` — provider-specific code (storage, identity)
+
+Routers MUST NOT import `boto3`, `jwt`, or any provider SDK directly — use
+adapters.
+
+## Errors
+
+Raise domain errors from `app.core.errors`:
+
+```python
+raise NotFoundError("Patient not found.")
+raise ConflictError("Slug already taken.")
+raise ForbiddenError("Not a member of clinic X.")
+```
+
+Don't raise bare `HTTPException` from services. Handlers in `app/core/errors.py`
+turn the above into a stable JSON shape: `{"error": {"code": ..., "message": ...}}`.
+
+## Dependency injection
+
+```python
+@router.get("/foo", response_model=FooPublic)
+async def foo(
+    principal: Principal = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> FooPublic:
+    ...
+```
+
+- `require_user` enforces auth AND installs the RLS context.
+- For role gating use `Depends(require_role(ClinicRole.OWNER, ClinicRole.DENTIST))`.
+
+## Multi-tenancy
+
+- Every tenant-scoped endpoint requires the `X-Clinic-Id` header; the
+  dependency installs `app.current_clinic_id`. RLS does the rest.
+- Don't add `clinic_id` to query filters in service code — RLS is the gate.
+
+## SQL
+
+- Prefer ORM. Use `text()` only where ORM is awkward (e.g. `pgp_sym_encrypt`).
+- When you `text()`, always use named bind params: `text("WHERE id = :id"), {"id": ...}`.
+  Never f-string user-controlled values.

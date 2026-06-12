@@ -1,0 +1,57 @@
+---
+description: PHI / RLS / audit invariants. Applies to the whole repo.
+alwaysApply: true
+---
+
+# Security invariants (clinic-crm)
+
+This is a multi-tenant medical CRM under India DPDP. Treat patient data as PHI.
+
+## Non-negotiable
+
+- **Every new tenant-scoped table MUST carry a `clinic_id` column AND have an
+  RLS policy + audit trigger added in the same Alembic migration.** Use the
+  `.cursor/skills/add-tenant-table/SKILL.md` checklist.
+- **Never query a tenant table without an RLS context set.** The API runs
+  `SET LOCAL app.current_user_id = ...` before any business logic. If you find
+  yourself reaching for `row_security = off` outside of seed/migration code,
+  stop — you're doing it wrong.
+- **Never log PHI.** `phone`, `address`, `allergies`, `medical_history`, `dob`,
+  full names and emails of patients must be stripped before any logger call.
+  The PII redactor in `app/core/logging.py` is a safety net, not a license.
+- **Encrypted columns** (`*_enc`) hold `pgp_sym_encrypt` output. Always
+  decrypt at the edge of the service layer and never write a plaintext PHI
+  column.
+- **Audit every mutation.** Triggers cover insert/update/delete on patients,
+  visits, prescriptions, media, shares. App code also emits explicit audit
+  rows for login, login_failed, exports, share creation/revocation, and
+  external share unlocks.
+- **No PHI in URLs.** Use ids only. Patient codes (`DC-2026-00001`) are not
+  PHI but should still not appear in third-party tracker URLs.
+- **TLS only.** HSTS + CSP are set in `infra/docker/nginx.conf`. Don't loosen.
+
+## Code smells that trigger a hard NO
+
+```python
+# ❌ logging PHI
+logger.info("patient phone", phone=patient.phone)
+
+# ❌ bypassing RLS to "just get this working"
+await session.execute(text("SET LOCAL row_security = off;"))
+await session.execute(select(Patient))
+
+# ❌ storing plaintext PHI
+session.add(Patient(phone="+91-..."))
+```
+
+```python
+# ✅ logging with safe identifiers only
+logger.info("patient_created", patient_id=patient.id, clinic_id=patient.clinic_id)
+
+# ✅ RLS context first, then ordinary ORM/SQL
+await set_rls_context(session, user_id=principal.user_id)
+patients = await session.execute(select(Patient))
+
+# ✅ encrypted column write
+text("INSERT INTO patients (..., phone_enc) VALUES (..., pgp_sym_encrypt(:phone, :key))")
+```

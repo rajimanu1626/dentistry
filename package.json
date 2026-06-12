@@ -1,0 +1,34 @@
+{
+  "name": "clinic-crm",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Multi-tenant dental clinic CRM monorepo (React + FastAPI + Postgres + Supabase, DPDP-aligned).",
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "bun --filter web dev",
+    "dev:api": "cd apps/api && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "build:web": "bun --filter web build",
+    "lint": "biome check .",
+    "lint:fix": "biome check --apply .",
+    "format": "biome format --write .",
+    "test:web": "bun --filter web test",
+    "test:api": "cd apps/api && uv run pytest",
+    "test:e2e": "bun --filter web exec playwright test",
+    "typegen:openapi": "bun --filter @clinic-crm/shared-types run generate",
+    "compose:up": "docker compose -f infra/compose/docker-compose.yml up --build",
+    "compose:down": "docker compose -f infra/compose/docker-compose.yml down -v",
+    "db:migrate": "cd apps/api && uv run alembic upgrade head",
+    "db:revision": "cd apps/api && uv run alembic revision --autogenerate -m",
+    "portability:check": "python3 scripts/check_portability.py"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4"
+  },
+  "engines": {
+    "bun": ">=1.1.0",
+    "node": ">=20"
+  }
+}
