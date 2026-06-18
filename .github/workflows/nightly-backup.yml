@@ -16,11 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pg client + gpg + restic
+      - name: Install pg client + gpg + awscli
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            postgresql-client gnupg2 awscli
+            postgresql-client gnupg2 python3-pip
+          pip3 install awscli
 
       - name: Dump
         env:
