@@ -5,12 +5,11 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
+from app.models.enums import SystemRole
+from app.services.auth import store_password_for_local
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.enums import SystemRole
-from app.services.auth import store_password_for_local
 
 
 async def _bootstrap_owner_with_patient(
@@ -73,9 +72,7 @@ async def test_platform_admin_can_manage_clinics_but_not_patients(
     api_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    owner_token, clinic_id, patient_id = await _bootstrap_owner_with_patient(
-        api_client, db_session
-    )
+    owner_token, clinic_id, patient_id = await _bootstrap_owner_with_patient(api_client, db_session)
     platform_email = await _create_platform_admin(db_session)
 
     login = await api_client.post(

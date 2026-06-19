@@ -4,7 +4,9 @@ import pytest
 from httpx import AsyncClient
 
 
-async def _bootstrap_owner(api_client: AsyncClient, *, email: str = "owner-history@example.com") -> tuple[str, str]:
+async def _bootstrap_owner(
+    api_client: AsyncClient, *, email: str = "owner-history@example.com"
+) -> tuple[str, str]:
     response = await api_client.post(
         "/auth/signup",
         json={
@@ -72,7 +74,9 @@ async def test_patient_history_ordering_and_filters(api_client: AsyncClient) -> 
 
 @pytest.mark.asyncio
 async def test_visit_summary_and_patient_isolation(api_client: AsyncClient) -> None:
-    owner_token, owner_clinic_id = await _bootstrap_owner(api_client, email="owner-summary@example.com")
+    owner_token, owner_clinic_id = await _bootstrap_owner(
+        api_client, email="owner-summary@example.com"
+    )
     owner_headers = {"Authorization": f"Bearer {owner_token}", "X-Clinic-Id": owner_clinic_id}
 
     patient = await api_client.post(
@@ -84,7 +88,11 @@ async def test_visit_summary_and_patient_isolation(api_client: AsyncClient) -> N
     visit = await api_client.post(
         "/visits",
         headers=owner_headers,
-        json={"patient_id": patient_id, "visit_date": "2026-01-03T10:00:00Z", "notes": "summary note"},
+        json={
+            "patient_id": patient_id,
+            "visit_date": "2026-01-03T10:00:00Z",
+            "notes": "summary note",
+        },
     )
     visit_id = visit.json()["id"]
 
@@ -101,7 +109,11 @@ async def test_visit_summary_and_patient_isolation(api_client: AsyncClient) -> N
     other_visit = await api_client.post(
         "/visits",
         headers=owner_headers,
-        json={"patient_id": other_patient_id, "visit_date": "2026-01-04T10:00:00Z", "notes": "other"},
+        json={
+            "patient_id": other_patient_id,
+            "visit_date": "2026-01-04T10:00:00Z",
+            "notes": "other",
+        },
     )
     assert other_visit.status_code == 201
 

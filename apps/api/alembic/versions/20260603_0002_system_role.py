@@ -27,9 +27,7 @@ system_role = ENUM(
 
 
 def upgrade() -> None:
-    op.execute(
-        "CREATE TYPE system_role AS ENUM ('platform_admin', 'platform_support');"
-    )
+    op.execute("CREATE TYPE system_role AS ENUM ('platform_admin', 'platform_support');")
     op.add_column(
         "users",
         sa.Column("system_role", system_role, nullable=True),

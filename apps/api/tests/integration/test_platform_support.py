@@ -5,12 +5,11 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
+from app.models.enums import SystemRole
+from app.services.auth import store_password_for_local
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.enums import SystemRole
-from app.services.auth import store_password_for_local
 
 
 async def _create_platform_user(

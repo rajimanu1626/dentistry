@@ -28,13 +28,13 @@ from app.core.security import (
     verify_password,
 )
 from app.models import Clinic, ClinicInvite, ClinicMember, ClinicRole, User
-from app.services import visits as visits_service
 from app.schemas.auth import (
     AuthConfigPublic,
     InviteCreated,
     InviteCreateRequest,
     InvitePublic,
 )
+from app.services import visits as visits_service
 
 
 class _LocalCredStore:
@@ -171,9 +171,7 @@ async def _resolve_invite_by_token(
     if not raw_token or len(raw_token) > 256:
         raise NotFoundError("Invalid invite token.")
     expected = hmac_sha256(settings.invite_hmac_secret_value, raw_token)
-    result = await session.execute(
-        select(ClinicInvite).where(ClinicInvite.token_hmac == expected)
-    )
+    result = await session.execute(select(ClinicInvite).where(ClinicInvite.token_hmac == expected))
     row = result.scalar_one_or_none()
     if row is None:
         raise NotFoundError("Invite not found.")
@@ -307,9 +305,7 @@ async def _signup_with_invite(
         session.add(user)
         await session.flush()
 
-        session.add(
-            ClinicMember(clinic_id=invite.clinic_id, user_id=user.id, role=invite.role)
-        )
+        session.add(ClinicMember(clinic_id=invite.clinic_id, user_id=user.id, role=invite.role))
         invite.accepted_at = datetime.now(UTC)
 
         clinic_row = await session.execute(select(Clinic).where(Clinic.id == invite.clinic_id))
