@@ -33,16 +33,19 @@ jobs:
 
       - name: Boot compose stack
         run: |
-          docker compose -f infra/compose/docker-compose.yml up -d --build --wait --wait-timeout 300
-          docker compose -f infra/compose/docker-compose.yml ps
+          docker compose -f infra/compose/docker-compose.yml up -d --build
+          docker compose -f infra/compose/docker-compose.yml ps -a
 
       - name: Wait for API readyz
         run: |
-          for i in {1..30}; do
+          for i in $(seq 1 60); do
             if curl -fsS http://localhost:8000/readyz; then echo "api ready"; exit 0; fi
-            sleep 2
+            echo "waiting for api ($i/60)..."
+            sleep 5
           done
-          echo "api never became ready"; docker compose -f infra/compose/docker-compose.yml logs api; exit 1
+          echo "api never became ready"
+          docker compose -f infra/compose/docker-compose.yml logs api
+          exit 1
 
       - name: Install playwright (host)
         working-directory: apps/web

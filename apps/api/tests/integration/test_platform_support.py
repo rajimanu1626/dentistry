@@ -24,7 +24,7 @@ async def _create_platform_user(
         text(
             """
             INSERT INTO users (id, email, full_name, system_role, is_active)
-            VALUES (:id, :email, :name, :role, true);
+            VALUES (:id, :email, :name, CAST(:role AS system_role), true);
             """
         ),
         {

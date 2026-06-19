@@ -472,3 +472,10 @@ async def login(
 def store_password_for_local(email: str, user_id: UUID, password: str) -> None:
     """Used by tests to bootstrap credentials without going through signup."""
     _LOCAL_CREDS.set(email, user_id, password)
+
+
+def clear_local_credentials() -> None:
+    """Reset the local credential store (integration tests + dev scripts)."""
+    _LOCAL_CREDS._by_email.clear()
+    if _LOCAL_CREDS._path.exists():
+        _LOCAL_CREDS._path.unlink()
