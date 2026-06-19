@@ -24,23 +24,11 @@ async def _seed_two_clinics(db_session: AsyncSession) -> dict[str, str]:
     clinic_a, clinic_b = uuid4(), uuid4()
 
     async with db_session.begin():
-        await set_rls_context(db_session, user_id=uuid4())  # not used during DDL/seed
+        await db_session.execute(text("SET LOCAL row_security = off;"))
         await db_session.execute(
             text("INSERT INTO users (id, email) VALUES (:ua, :ea), (:ub, :eb)"),
             {"ua": str(user_a), "ea": "a@x.test", "ub": str(user_b), "eb": "b@x.test"},
         )
-
-    async with db_session.begin():
-        await set_rls_context(db_session, user_id=user_a)
-        await db_session.execute(
-            text(
-                "INSERT INTO clinic_members (clinic_id, user_id, role) VALUES (:ca, :ua, 'owner')"
-            ),
-            {"ca": str(clinic_a), "ua": str(user_a)},
-        )
-
-    async with db_session.begin():
-        await db_session.execute(text("SET LOCAL row_security = off;"))
         await db_session.execute(
             text("INSERT INTO clinics (id, slug, name) VALUES (:ca, 'a', 'A'), (:cb, 'b', 'B')"),
             {"ca": str(clinic_a), "cb": str(clinic_b)},

@@ -33,7 +33,7 @@ jobs:
 
       - name: Boot compose stack
         run: |
-          docker compose -f infra/compose/docker-compose.yml up -d --wait --build
+          docker compose -f infra/compose/docker-compose.yml up -d --build --wait --wait-timeout 300
           docker compose -f infra/compose/docker-compose.yml ps
 
       - name: Wait for API readyz

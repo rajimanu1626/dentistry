@@ -90,12 +90,18 @@ services:
       - api_venv:/app/.venv
     ports:
       - "8000:8000"
-    command: ["uv", "run", "uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+    command:
+      - /bin/sh
+      - -c
+      - |
+        uv run alembic upgrade head
+        exec uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 120s
 
   web:
     container_name: clinic-crm-web
