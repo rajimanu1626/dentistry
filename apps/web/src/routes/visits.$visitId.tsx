@@ -54,12 +54,12 @@ function VisitDetailPage() {
   }, [summaryQuery.data]);
   const mediaQuery = useQuery({
     queryKey: ['patient-media', summaryQuery.data?.visit.patient_id],
-    queryFn: () => patientsApi.listMedia(summaryQuery.data?.visit.patient_id),
+    queryFn: () => patientsApi.listMedia(summaryQuery.data!.visit.patient_id),
     enabled: Boolean(summaryQuery.data?.visit.patient_id),
   });
   const externalSharesQuery = useQuery({
     queryKey: ['external-shares', summaryQuery.data?.visit.patient_id],
-    queryFn: () => patientsApi.listExternalShares(summaryQuery.data?.visit.patient_id),
+    queryFn: () => patientsApi.listExternalShares(summaryQuery.data!.visit.patient_id),
     enabled: Boolean(summaryQuery.data?.visit.patient_id),
   });
 
@@ -469,7 +469,7 @@ function VisitDetailPage() {
                   className="btn btn-primary"
                   onClick={() =>
                     void openProtectedPdf(
-                      `/prescriptions/${summaryQuery.data?.prescriptions[0].id}/pdf`,
+                      `/prescriptions/${summaryQuery.data!.prescriptions[0].id}/pdf`,
                     )
                   }
                 >
@@ -488,7 +488,7 @@ function VisitDetailPage() {
                 className="btn"
                 onClick={() =>
                   void openProtectedPdf(
-                    `/patients/${summaryQuery.data?.visit.patient_id}/history/pdf`,
+                    `/patients/${summaryQuery.data!.visit.patient_id}/history/pdf`,
                   )
                 }
               >

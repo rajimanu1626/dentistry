@@ -2,9 +2,10 @@ import type { QueryClient } from '@tanstack/react-query';
 import { Link, Outlet, createRootRouteWithContext, useNavigate } from '@tanstack/react-router';
 import { LayoutDashboard, LogOut, Shield, Stethoscope, UserCog, Users } from 'lucide-react';
 
-import { auth } from '@/lib/auth';
+import { auth, getAuthVersion, subscribeAuth } from '@/lib/auth';
 import { fetchMe, logout } from '@/lib/auth-api';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSyncExternalStore } from 'react';
 
 interface RootContext {
   queryClient: QueryClient;
@@ -16,6 +17,10 @@ export const Route = createRootRouteWithContext<RootContext>()({
 
 function RootLayout() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  // Re-render the shell whenever the session changes (login, logout, clinic
+  // switch, or another tab) so the nav never shows a stale auth state.
+  useSyncExternalStore(subscribeAuth, getAuthVersion, getAuthVersion);
   const signedIn = auth.isAuthenticated();
   const meQuery = useQuery({
     queryKey: ['auth', 'me'],
@@ -117,6 +122,7 @@ function RootLayout() {
                   className="btn btn-ghost ml-1 px-2.5 py-1.5"
                   onClick={() => {
                     logout();
+                    queryClient.clear();
                     navigate({ to: '/login' });
                   }}
                 >
