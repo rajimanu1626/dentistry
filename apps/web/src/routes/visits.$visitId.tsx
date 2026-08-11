@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute } from '@tanstack/react-router';
+import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { auth } from '@/lib/auth';
@@ -250,8 +251,12 @@ function VisitDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/patients" className="text-sm text-brand hover:underline">
-        ← Back to patients
+      <Link
+        to="/patients"
+        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition-colors hover:text-brand"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to patients
       </Link>
 
       {summaryQuery.isLoading && <p className="text-sm text-slate-500">Loading visit summary…</p>}

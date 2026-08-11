@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Stethoscope, UserPlus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { type ApiError, fetchAuthConfig, signup } from '@/lib/auth-api';
@@ -79,7 +80,7 @@ function SignupPage() {
         <p className="text-sm text-slate-600">
           New accounts are invite-only. Contact your clinic administrator for access.
         </p>
-        <Link to="/login" className="text-brand hover:underline">
+        <Link to="/login" className="font-medium text-brand hover:underline">
           Back to sign in
         </Link>
       </div>
@@ -87,10 +88,13 @@ function SignupPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-6">
+    <div className="mx-auto max-w-md animate-fade-in-up space-y-6 py-6">
       <header className="text-center">
-        <h1 className="text-2xl font-semibold">Create account</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient text-white shadow-glow">
+          <Stethoscope className="h-7 w-7" />
+        </span>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight">Create account</h1>
+        <p className="mt-1 text-sm text-slate-500">
           {requiresInvite
             ? 'Use the invite link or token from your clinic admin.'
             : showClinicFields
@@ -108,15 +112,19 @@ function SignupPage() {
           mutation.mutate();
         }}
       >
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
 
         {requiresInvite && (
           <label className="block text-sm">
-            <span className="font-medium text-slate-700">Invite token</span>
+            <span className="label">Invite token</span>
             <input
               type="text"
               required
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs"
+              className="input font-mono text-xs"
               value={inviteToken}
               onChange={(e) => setInviteToken(e.target.value)}
               placeholder="Paste token from your invite email"
@@ -125,35 +133,35 @@ function SignupPage() {
         )}
 
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">Full name</span>
+          <span className="label">Full name</span>
           <input
             type="text"
             required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="input"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
           />
         </label>
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">Email</span>
+          <span className="label">Email</span>
           <input
             type="email"
             required
             autoComplete="email"
             readOnly={Boolean(emailFromUrl)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 read-only:bg-slate-50"
+            className="input read-only:bg-slate-50"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
         </label>
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">Password</span>
+          <span className="label">Password</span>
           <input
             type="password"
             required
             minLength={10}
             autoComplete="new-password"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -163,11 +171,11 @@ function SignupPage() {
         {showClinicFields && (
           <>
             <label className="block text-sm">
-              <span className="font-medium text-slate-700">Clinic name</span>
+              <span className="label">Clinic name</span>
               <input
                 type="text"
                 required
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="input"
                 value={clinicName}
                 onChange={(e) => {
                   setClinicName(e.target.value);
@@ -178,12 +186,12 @@ function SignupPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="font-medium text-slate-700">Clinic URL slug</span>
+              <span className="label">Clinic URL slug</span>
               <input
                 type="text"
                 required
                 pattern="^[a-z0-9][a-z0-9\-]{1,79}$"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm"
+                className="input font-mono text-sm"
                 value={clinicSlug}
                 onChange={(e) => setClinicSlug(e.target.value)}
               />
@@ -196,13 +204,14 @@ function SignupPage() {
           className="btn btn-primary w-full"
           disabled={mutation.isPending || !canSubmit}
         >
+          <UserPlus className="h-4 w-4" />
           {mutation.isPending ? 'Creating account…' : 'Create account'}
         </button>
       </form>
 
       <p className="text-center text-sm text-slate-600">
         Already have an account?{' '}
-        <Link to="/login" className="text-brand hover:underline">
+        <Link to="/login" className="font-medium text-brand hover:underline">
           Sign in
         </Link>
       </p>

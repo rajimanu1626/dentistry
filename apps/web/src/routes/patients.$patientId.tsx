@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 
 import { patientsApi } from '@/lib/patients';
@@ -56,8 +57,12 @@ function PatientDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/patients" className="text-sm text-brand hover:underline">
-        ← Back to patients
+      <Link
+        to="/patients"
+        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition-colors hover:text-brand"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to patients
       </Link>
 
       {isLoading && <p className="text-sm">Loading…</p>}
@@ -66,9 +71,14 @@ function PatientDetailPage() {
       {data && (
         <>
           <article className="card space-y-4">
-            <header>
-              <h1 className="text-2xl font-semibold">{data.full_name}</h1>
-              <p className="text-sm text-slate-500">{data.patient_code}</p>
+            <header className="flex items-center gap-4">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient text-xl font-bold text-white shadow-glow">
+                {data.full_name.slice(0, 1).toUpperCase()}
+              </span>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">{data.full_name}</h1>
+                <span className="badge badge-brand mt-1 font-mono">{data.patient_code}</span>
+              </div>
             </header>
 
             <dl className="grid grid-cols-2 gap-4 text-sm">
