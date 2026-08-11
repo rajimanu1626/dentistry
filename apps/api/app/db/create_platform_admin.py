@@ -44,9 +44,7 @@ def _build_parser() -> ArgumentParser:
 async def _run(args: Namespace) -> None:
     settings = get_settings()
     if settings.is_production and not args.allow_production:
-        raise SystemExit(
-            "Refusing to run in production without --allow-production (break-glass)."
-        )
+        raise SystemExit("Refusing to run in production without --allow-production (break-glass).")
     if len(args.password) < 10:
         raise SystemExit("Password must be at least 10 characters.")
 

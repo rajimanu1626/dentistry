@@ -11,6 +11,16 @@ from httpx import ASGITransport, AsyncClient
 os.environ.setdefault("APP_ENV", "test")
 
 
+@pytest.fixture(autouse=True)
+def reset_local_credentials() -> None:
+    """Truncate does not clear the JSON-backed local auth store — reset each test."""
+    from app.services.auth import clear_local_credentials
+
+    clear_local_credentials()
+    yield
+    clear_local_credentials()
+
+
 @pytest.fixture
 def settings_overrides() -> dict[str, str]:
     """Override map for the per-test settings instance."""

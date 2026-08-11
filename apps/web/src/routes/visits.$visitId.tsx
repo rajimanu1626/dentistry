@@ -54,12 +54,20 @@ function VisitDetailPage() {
   }, [summaryQuery.data]);
   const mediaQuery = useQuery({
     queryKey: ['patient-media', summaryQuery.data?.visit.patient_id],
-    queryFn: () => patientsApi.listMedia(summaryQuery.data!.visit.patient_id),
+    queryFn: () => {
+      const patientId = summaryQuery.data?.visit.patient_id;
+      if (!patientId) throw new Error('Patient not loaded');
+      return patientsApi.listMedia(patientId);
+    },
     enabled: Boolean(summaryQuery.data?.visit.patient_id),
   });
   const externalSharesQuery = useQuery({
     queryKey: ['external-shares', summaryQuery.data?.visit.patient_id],
-    queryFn: () => patientsApi.listExternalShares(summaryQuery.data!.visit.patient_id),
+    queryFn: () => {
+      const patientId = summaryQuery.data?.visit.patient_id;
+      if (!patientId) throw new Error('Patient not loaded');
+      return patientsApi.listExternalShares(patientId);
+    },
     enabled: Boolean(summaryQuery.data?.visit.patient_id),
   });
 
@@ -469,7 +477,7 @@ function VisitDetailPage() {
                   className="btn btn-primary"
                   onClick={() =>
                     void openProtectedPdf(
-                      `/prescriptions/${summaryQuery.data!.prescriptions[0].id}/pdf`,
+                      `/prescriptions/${summaryQuery.data?.prescriptions[0].id}/pdf`,
                     )
                   }
                 >
@@ -488,7 +496,7 @@ function VisitDetailPage() {
                 className="btn"
                 onClick={() =>
                   void openProtectedPdf(
-                    `/patients/${summaryQuery.data!.visit.patient_id}/history/pdf`,
+                    `/patients/${summaryQuery.data?.visit.patient_id}/history/pdf`,
                   )
                 }
               >
@@ -512,8 +520,11 @@ function VisitDetailPage() {
               </button>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-slate-500">Visit summary link</label>
+              <label htmlFor="visit-summary-link" className="text-xs text-slate-500">
+                Visit summary link
+              </label>
               <input
+                id="visit-summary-link"
                 readOnly
                 className="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-xs"
                 value={`${window.location.origin}/patients/${summaryQuery.data.visit.patient_id}?visit=${visitId}`}

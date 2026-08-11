@@ -9,7 +9,6 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
-from app.services.pdf import DEFAULT_PRESCRIPTION_TEMPLATE_HTML
 from app.models import (
     ExternalShareLink,
     PatientMedia,
@@ -30,6 +29,7 @@ from app.schemas.visits import (
     VisitSummaryPublic,
     VisitUpdate,
 )
+from app.services.pdf import DEFAULT_PRESCRIPTION_TEMPLATE_HTML
 
 
 async def create_visit(session: AsyncSession, *, body: VisitCreate, clinic_id: UUID) -> VisitPublic:
@@ -195,9 +195,7 @@ async def create_template(
     return PrescriptionTemplatePublic.model_validate(t)
 
 
-async def ensure_default_prescription_template(
-    session: AsyncSession, *, clinic_id: UUID
-) -> None:
+async def ensure_default_prescription_template(session: AsyncSession, *, clinic_id: UUID) -> None:
     """Provision the built-in default template for a new clinic."""
     existing = await session.execute(
         select(PrescriptionTemplate.id).where(
@@ -286,7 +284,9 @@ async def get_patient_history(
             visit_ids = {row.id for row in visit_rows}
         if visit_ids:
             rxs = await session.execute(
-                select(Prescription).where(Prescription.visit_id.in_(visit_ids)).order_by(Prescription.created_at.desc())
+                select(Prescription)
+                .where(Prescription.visit_id.in_(visit_ids))
+                .order_by(Prescription.created_at.desc())
             )
             for row in rxs.scalars().all():
                 items.append(
@@ -385,11 +385,7 @@ async def get_patient_history(
     if cursor_tuple:
         cursor_dt, cursor_id = cursor_tuple
         cursor_key = (cursor_dt, str(cursor_id))
-        items = [
-            item
-            for item in items
-            if (item.event_time, str(item.id)) < cursor_key
-        ]
+        items = [item for item in items if (item.event_time, str(item.id)) < cursor_key]
 
     page_items = items[:limit]
     next_cursor = None

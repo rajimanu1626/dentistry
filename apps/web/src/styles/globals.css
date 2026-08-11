@@ -17,21 +17,23 @@
 
   body {
     @apply bg-slate-50 text-slate-900;
-    background-image:
-      radial-gradient(48rem 48rem at 100% -10%, rgb(52 209 191 / 0.16), transparent 55%),
-      radial-gradient(42rem 42rem at -10% 0%, rgb(99 102 241 / 0.10), transparent 50%);
+    background-image: radial-gradient(
+        48rem 48rem at 100% -10%,
+        rgb(52 209 191 / 0.16),
+        transparent 55%
+      ), radial-gradient(42rem 42rem at -10% 0%, rgb(99 102 241 / 0.1), transparent 50%);
     background-attachment: fixed;
     background-repeat: no-repeat;
   }
 
   /* Consistent, modern form controls everywhere (utility classes still win). */
-  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
   textarea,
   select {
     @apply rounded-lg border border-slate-300 bg-white text-slate-900 transition-shadow placeholder:text-slate-400;
   }
 
-  input:not([type='checkbox']):not([type='radio']):not([type='file']):focus,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
   textarea:focus,
   select:focus {
     @apply border-brand outline-none ring-2 ring-brand/25;

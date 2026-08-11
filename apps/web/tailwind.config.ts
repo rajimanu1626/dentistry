@@ -29,13 +29,7 @@ export default {
         ink: '#0f172a',
       },
       fontFamily: {
-        sans: [
-          'Inter var',
-          'Inter',
-          'ui-sans-serif',
-          'system-ui',
-          'sans-serif',
-        ],
+        sans: ['Inter var', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         soft: '0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)',
@@ -50,8 +44,7 @@ export default {
       },
       backgroundImage: {
         'brand-gradient': 'linear-gradient(135deg, #0E7C7B 0%, #15b3a4 50%, #34D1BF 100%)',
-        'mesh':
-          'radial-gradient(60rem 60rem at 110% -10%, rgb(52 209 191 / 0.18), transparent 55%), radial-gradient(50rem 50rem at -10% 0%, rgb(99 102 241 / 0.12), transparent 50%)',
+        mesh: 'radial-gradient(60rem 60rem at 110% -10%, rgb(52 209 191 / 0.18), transparent 55%), radial-gradient(50rem 50rem at -10% 0%, rgb(99 102 241 / 0.12), transparent 50%)',
       },
       keyframes: {
         'fade-in-up': {
