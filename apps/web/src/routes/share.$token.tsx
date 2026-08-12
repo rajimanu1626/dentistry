@@ -112,7 +112,7 @@ function ShareAccessPage() {
       <div className="space-y-2">
         <input
           type="password"
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
+          className="input"
           placeholder="Enter password provided by clinic"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

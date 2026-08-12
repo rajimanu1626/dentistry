@@ -94,13 +94,13 @@ function PatientDetailPage() {
                 }}
               >
                 <input
-                  className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="input input-sm"
                   placeholder="Chief complaint"
                   value={chiefComplaint}
                   onChange={(e) => setChiefComplaint(e.target.value)}
                 />
                 <textarea
-                  className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="input input-sm"
                   placeholder="Notes"
                   value={visitNotes}
                   onChange={(e) => setVisitNotes(e.target.value)}
@@ -121,7 +121,7 @@ function PatientDetailPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Visit Log & History</h2>
               <select
-                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 value={eventType}
                 onChange={(e) => {
                   setCursor(undefined);

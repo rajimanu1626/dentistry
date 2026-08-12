@@ -27,7 +27,7 @@ export interface PlatformUser {
 
 export interface PlatformClinicInviteCreate {
   email: string;
-  role: 'owner' | 'dentist' | 'assistant' | 'front_desk';
+  role: 'owner' | 'dentist' | 'assistant' | 'front_desk' | 'receptionist';
   expires_in_seconds?: number;
 }
 

@@ -3,6 +3,15 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
+
+
+def enum_str(value: Any) -> str:
+    """Normalize SQLAlchemy enum / StrEnum / plain str to a string value."""
+    if value is None:
+        return ""
+    raw = getattr(value, "value", value)
+    return str(raw)
 
 
 class ClinicRole(StrEnum):
@@ -10,6 +19,17 @@ class ClinicRole(StrEnum):
     DENTIST = "dentist"
     ASSISTANT = "assistant"
     FRONT_DESK = "front_desk"
+    RECEPTIONIST = "receptionist"
+
+
+# Roles allowed to register / update patient demographics.
+PATIENT_WRITE_ROLES: tuple[ClinicRole, ...] = (
+    ClinicRole.OWNER,
+    ClinicRole.DENTIST,
+    ClinicRole.ASSISTANT,
+    ClinicRole.FRONT_DESK,
+    ClinicRole.RECEPTIONIST,
+)
 
 
 class SystemRole(StrEnum):

@@ -14,6 +14,7 @@
     "test:coverage": "node ../../node_modules/vitest/vitest.mjs run --coverage"
   },
   "dependencies": {
+    "@neondatabase/neon-js": "^0.7.0-beta",
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-router": "^1.95.0",
     "axios": "^1.7.9",

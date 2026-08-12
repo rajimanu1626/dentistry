@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import { auth } from '@/lib/auth';
+import { MediaGallery } from '@/components/media-gallery';
 import { patientsApi } from '@/lib/patients';
+import { openProtectedPdf } from '@/lib/pdf';
 import { requireClinicalWorkspace } from '@/lib/router-auth';
 
 export const Route = createFileRoute('/visits/$visitId')({
@@ -39,6 +40,8 @@ function VisitDetailPage() {
   } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
+  const [pdfIncludeMedia, setPdfIncludeMedia] = useState(false);
 
   const summaryQuery = useQuery({
     queryKey: ['visit-summary', visitId],
@@ -55,7 +58,7 @@ function VisitDetailPage() {
     queryKey: ['patient-media', summaryQuery.data?.visit.patient_id],
     queryFn: () => {
       const patientId = summaryQuery.data?.visit.patient_id;
-      if (!patientId) throw new Error('Patient not loaded');
+      if (!patientId) throw new Error('Patient id is required');
       return patientsApi.listMedia(patientId);
     },
     enabled: Boolean(summaryQuery.data?.visit.patient_id),
@@ -64,7 +67,7 @@ function VisitDetailPage() {
     queryKey: ['external-shares', summaryQuery.data?.visit.patient_id],
     queryFn: () => {
       const patientId = summaryQuery.data?.visit.patient_id;
-      if (!patientId) throw new Error('Patient not loaded');
+      if (!patientId) throw new Error('Patient id is required');
       return patientsApi.listExternalShares(patientId);
     },
     enabled: Boolean(summaryQuery.data?.visit.patient_id),
@@ -204,48 +207,10 @@ function VisitDetailPage() {
     },
   });
 
-  async function openProtectedPdf(path: string): Promise<void> {
-    const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
-    try {
-      const token = auth.getToken();
-      const clinicId = auth.getClinicId();
-      if (!token || !clinicId) {
-        throw new Error('You must be signed in with a clinic selected.');
-      }
-      const res = await fetch(`/api${path}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'X-Clinic-Id': clinicId,
-        },
-      });
-      if (!res.ok) {
-        let message = 'Unable to generate PDF. Please try again.';
-        try {
-          const body = (await res.json()) as {
-            error?: { message?: string };
-          };
-          if (body.error?.message) {
-            message = body.error.message;
-          }
-        } catch {
-          // response was not JSON (e.g. proxy error page)
-        }
-        throw new Error(message);
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      if (popup && !popup.closed) {
-        popup.location.href = url;
-      } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      if (popup && !popup.closed) {
-        popup.close();
-      }
+  function handleOpenPdf(path: string): void {
+    void openProtectedPdf(path, { includeMedia: pdfIncludeMedia }).catch((err) => {
       setActionError(err instanceof Error ? err.message : 'Unable to open PDF.');
-    }
+    });
   }
 
   return (
@@ -284,25 +249,25 @@ function VisitDetailPage() {
               }}
             >
               <input
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 placeholder="Chief complaint"
                 value={chiefComplaint}
                 onChange={(e) => setChiefComplaint(e.target.value)}
               />
               <input
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 placeholder="Diagnosis"
                 value={diagnosis}
                 onChange={(e) => setDiagnosis(e.target.value)}
               />
               <input
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 placeholder="Treatment plan"
                 value={treatmentPlan}
                 onChange={(e) => setTreatmentPlan(e.target.value)}
               />
               <textarea
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 placeholder="Notes"
                 value={visitNotes}
                 onChange={(e) => setVisitNotes(e.target.value)}
@@ -338,7 +303,7 @@ function VisitDetailPage() {
             >
               <h3 className="text-sm font-semibold">Add prescription</h3>
               <input
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 placeholder="Medication"
                 value={rxMedication}
                 onChange={(e) => setRxMedication(e.target.value)}
@@ -346,21 +311,21 @@ function VisitDetailPage() {
               />
               <div className="grid grid-cols-3 gap-2">
                 <input
-                  className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="input input-sm"
                   placeholder="Dose"
                   value={rxDose}
                   onChange={(e) => setRxDose(e.target.value)}
                   required
                 />
                 <input
-                  className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="input input-sm"
                   placeholder="Frequency"
                   value={rxFrequency}
                   onChange={(e) => setRxFrequency(e.target.value)}
                   required
                 />
                 <input
-                  className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="input input-sm"
                   placeholder="Duration"
                   value={rxDuration}
                   onChange={(e) => setRxDuration(e.target.value)}
@@ -368,7 +333,7 @@ function VisitDetailPage() {
                 />
               </div>
               <textarea
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 placeholder="Notes"
                 value={rxNotes}
                 onChange={(e) => setRxNotes(e.target.value)}
@@ -394,12 +359,12 @@ function VisitDetailPage() {
             >
               <input
                 type="date"
-                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 value={followupDate}
                 onChange={(e) => setFollowupDate(e.target.value)}
               />
               <textarea
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 placeholder="Follow-up notes"
                 value={followupNotes}
                 onChange={(e) => setFollowupNotes(e.target.value)}
@@ -420,7 +385,7 @@ function VisitDetailPage() {
               }}
             >
               <select
-                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 value={mediaKind}
                 onChange={(e) =>
                   setMediaKind(e.target.value as 'before' | 'after' | 'xray' | 'other')
@@ -444,36 +409,34 @@ function VisitDetailPage() {
                 {uploadMediaMutation.isPending ? 'Uploading...' : 'Upload media'}
               </button>
             </form>
-            {mediaQuery.data && mediaQuery.data.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {mediaQuery.data
-                  .filter((m) => m.visit_id === visitId)
-                  .map((m) => (
-                    <a
-                      key={m.id}
-                      href={m.signed_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-md border border-slate-200 p-2 text-xs hover:bg-slate-50"
-                    >
-                      {m.kind} · {new Date(m.created_at).toLocaleString()}
-                    </a>
-                  ))}
-              </div>
+            {mediaQuery.data && (
+              <MediaGallery
+                items={mediaQuery.data.filter((m) => m.visit_id === visitId || m.visit_id == null)}
+                emptyMessage="No media for this visit yet."
+                selectedId={selectedMediaId}
+                onSelect={setSelectedMediaId}
+              />
             )}
           </section>
 
           <section className="card space-y-3">
             <h2 className="text-lg font-semibold">Quick actions</h2>
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                className="rounded border-slate-300"
+                checked={pdfIncludeMedia}
+                onChange={(event) => setPdfIncludeMedia(event.target.checked)}
+              />
+              Include images and scans in PDF exports
+            </label>
             <div className="flex flex-wrap gap-2">
               {summaryQuery.data.prescriptions[0] && (
                 <button
                   type="button"
                   className="btn btn-primary"
                   onClick={() =>
-                    void openProtectedPdf(
-                      `/prescriptions/${summaryQuery.data?.prescriptions[0].id}/pdf`,
-                    )
+                    handleOpenPdf(`/prescriptions/${summaryQuery.data?.prescriptions[0].id}/pdf`)
                   }
                 >
                   Print prescription
@@ -482,7 +445,7 @@ function VisitDetailPage() {
               <button
                 type="button"
                 className="btn"
-                onClick={() => void openProtectedPdf(`/visits/${visitId}/summary/pdf`)}
+                onClick={() => handleOpenPdf(`/visits/${visitId}/summary/pdf`)}
               >
                 Print visit summary
               </button>
@@ -490,9 +453,7 @@ function VisitDetailPage() {
                 type="button"
                 className="btn"
                 onClick={() =>
-                  void openProtectedPdf(
-                    `/patients/${summaryQuery.data?.visit.patient_id}/history/pdf`,
-                  )
+                  handleOpenPdf(`/patients/${summaryQuery.data?.visit.patient_id}/history/pdf`)
                 }
               >
                 Print full history
@@ -521,7 +482,7 @@ function VisitDetailPage() {
               <input
                 id="visit-summary-link"
                 readOnly
-                className="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-xs"
+                className="input input-sm input-mono"
                 value={`${window.location.origin}/patients/${summaryQuery.data.visit.patient_id}?visit=${visitId}`}
               />
             </div>
@@ -539,7 +500,7 @@ function VisitDetailPage() {
               }}
             >
               <input
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 placeholder="Recipient label (optional)"
                 value={shareRecipient}
                 onChange={(e) => setShareRecipient(e.target.value)}
@@ -548,7 +509,7 @@ function VisitDetailPage() {
                 <input
                   type="number"
                   min={1}
-                  className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="input input-sm"
                   placeholder="Expiry (hours)"
                   value={shareTtlHours}
                   onChange={(e) => setShareTtlHours(e.target.value)}
@@ -557,7 +518,7 @@ function VisitDetailPage() {
                   type="number"
                   min={1}
                   max={50}
-                  className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="input input-sm"
                   placeholder="Max views"
                   value={shareMaxViews}
                   onChange={(e) => setShareMaxViews(e.target.value)}
@@ -565,13 +526,13 @@ function VisitDetailPage() {
               </div>
               <input
                 type="text"
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 placeholder="Password (optional, auto-generated if empty)"
                 value={sharePassword}
                 onChange={(e) => setSharePassword(e.target.value)}
               />
               <select
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="input input-sm"
                 value={shareScopeMode}
                 onChange={(e) => setShareScopeMode(e.target.value as 'visit' | 'history')}
               >

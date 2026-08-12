@@ -15,10 +15,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.identity import IdentityProvider, get_identity_provider
+from app.core.config import get_settings
 from app.core.errors import ForbiddenError, UnauthorizedError
 from app.db.session import get_session, set_rls_context
-from app.models import ClinicMember, ClinicRole, User
+from app.models import ClinicMember, ClinicRole
 from app.models.enums import SystemRole
+from app.services import auth as auth_service
 from app.services.platform import is_platform_operator
 
 
@@ -51,11 +53,8 @@ async def require_user(
     """Resolve the calling user and install the RLS session context."""
     raw = await _bearer_token(authorization)
     token = await identity.verify(raw)
-
-    result = await session.execute(select(User).where(User.id == token.user_id))
-    user = result.scalar_one_or_none()
-    if user is None or not user.is_active:
-        raise UnauthorizedError("Unknown or inactive user.")
+    settings = get_settings()
+    user = await auth_service.ensure_user_from_identity(session, token, settings=settings)
 
     clinic_id: UUID | None = None
     if x_clinic_id:
@@ -63,6 +62,12 @@ async def require_user(
             clinic_id = UUID(x_clinic_id)
         except ValueError as exc:
             raise UnauthorizedError("Invalid X-Clinic-Id header.") from exc
+
+    # Install RLS before membership lookups (clinic_members is tenant-scoped).
+    # Session may already be in an implicit transaction from ensure_user reads.
+    await set_rls_context(session, user_id=user.id, clinic_id=None)
+
+    if clinic_id is not None:
         membership = await session.execute(
             select(ClinicMember).where(
                 ClinicMember.clinic_id == clinic_id,
@@ -71,11 +76,7 @@ async def require_user(
         )
         if membership.scalar_one_or_none() is None:
             raise ForbiddenError("You are not a member of the requested clinic.")
-
-    # Session may already be in an implicit transaction from the lookups above.
-    # `SET LOCAL` requires a transaction, so reuse the active one instead of
-    # opening a nested `session.begin()`.
-    await set_rls_context(session, user_id=user.id, clinic_id=clinic_id)
+        await set_rls_context(session, user_id=user.id, clinic_id=clinic_id)
 
     principal = Principal(
         user_id=user.id,

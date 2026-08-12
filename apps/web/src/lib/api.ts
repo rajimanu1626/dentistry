@@ -6,6 +6,7 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios';
 
 import { auth } from '@/lib/auth';
+import { fetchNeonAccessToken, isJwksAccessToken, isNeonAuthEnabled } from '@/lib/neon-auth';
 
 // In local dev, always go through Vite's /api proxy so browser-side requests
 // don't depend on host/container localhost semantics.
@@ -18,16 +19,70 @@ const axiosInstance: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-axiosInstance.interceptors.request.use((config) => {
+let refreshInFlight: Promise<string | null> | null = null;
+
+function jwtStillFresh(token: string, skewSeconds = 60): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2 || !parts[1]) return false;
+    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
+    const payload = JSON.parse(atob(padded + pad)) as { exp?: number };
+    return typeof payload.exp === 'number' && payload.exp * 1000 > Date.now() + skewSeconds * 1000;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveAccessToken(): Promise<string | null> {
+  const existing = auth.getToken();
+  if (!isNeonAuthEnabled) {
+    return existing;
+  }
+
+  // Drop leftover local HS256 / opaque session tokens from before Neon Auth.
+  if (existing && !isJwksAccessToken(existing)) {
+    auth.clearToken();
+  }
+
+  const current = auth.getToken();
+  if (current && isJwksAccessToken(current) && jwtStillFresh(current)) {
+    return current;
+  }
+
+  // Only refresh when we already had a token (signed-in) or Neon session may exist.
+  // Avoid calling /token on anonymous /auth/config requests.
+  if (!current && !existing) {
+    return null;
+  }
+
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const token = await fetchNeonAccessToken();
+        auth.setToken(token);
+        return token;
+      } catch {
+        auth.clearToken();
+        return null;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+  }
+  return refreshInFlight;
+}
+
+axiosInstance.interceptors.request.use(async (config) => {
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
     // Let the browser set multipart boundary automatically.
     config.headers['Content-Type'] = undefined;
   }
-  const token = localStorage.getItem('cc.access_token');
+  const token = await resolveAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  const clinic = localStorage.getItem('cc.clinic_id');
+  const clinic = auth.getClinicId();
   if (clinic) {
     config.headers['X-Clinic-Id'] = clinic;
   }
@@ -130,6 +185,52 @@ export const apiClient = {
       const { data } = await axiosInstance.delete<T>(path, config);
       return data;
     } catch (e) {
+      normalize(e);
+    }
+  },
+  /** Authenticated binary download (PDFs, etc.). */
+  getBlob: async (path: string, config?: AxiosRequestConfig): Promise<Blob> => {
+    try {
+      const { data } = await axiosInstance.get<Blob>(path, {
+        ...config,
+        responseType: 'blob',
+        timeout: config?.timeout ?? 60_000,
+      });
+      if (data.type === 'application/json') {
+        const text = await data.text();
+        try {
+          const parsed = JSON.parse(text) as {
+            error?: { message?: string; code?: string };
+          };
+          const err = new Error(parsed.error?.message ?? 'Request failed.') as ApiError;
+          err.status = 400;
+          err.code = parsed.error?.code ?? 'request_failed';
+          throw err;
+        } catch (inner) {
+          if (inner && typeof inner === 'object' && 'status' in inner) {
+            throw inner;
+          }
+          throw new Error('Request failed.');
+        }
+      }
+      return data;
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.data instanceof Blob) {
+        try {
+          const text = await e.response.data.text();
+          const parsed = JSON.parse(text) as {
+            error?: { message?: string; code?: string };
+          };
+          const err = new Error(parsed.error?.message ?? e.message) as ApiError;
+          err.status = e.response.status;
+          err.code = parsed.error?.code ?? 'request_failed';
+          throw err;
+        } catch (inner) {
+          if (inner && typeof inner === 'object' && 'status' in inner) {
+            throw inner;
+          }
+        }
+      }
       normalize(e);
     }
   },

@@ -68,6 +68,26 @@ class AuthConfigPublic(BaseModel):
     can_signup: bool
     can_bootstrap_clinic: bool
     requires_invite: bool
+    identity_provider: str = "local"
+
+
+class BootstrapClinicRequest(BaseModel):
+    """Authenticated bootstrap: create the first clinic after IdP signup."""
+
+    clinic_name: str = Field(min_length=2, max_length=160)
+    clinic_slug: str = Field(
+        min_length=2,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9\-]{1,79}$",
+    )
+    full_name: str | None = Field(default=None, min_length=1, max_length=160)
+
+
+class AcceptInviteRequest(BaseModel):
+    """Authenticated invite accept after IdP signup."""
+
+    invite_token: str = Field(min_length=16, max_length=256)
+    full_name: str | None = Field(default=None, min_length=1, max_length=160)
 
 
 class InviteCreateRequest(BaseModel):
@@ -97,3 +117,7 @@ class InvitePublic(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=10, max_length=128)
     new_password: str = Field(min_length=10, max_length=128)
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str = Field(min_length=1, max_length=160)

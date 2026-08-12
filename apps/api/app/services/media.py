@@ -6,6 +6,7 @@ accidentally persist GPS coordinates / device fingerprints.
 
 from __future__ import annotations
 
+import base64
 import io
 from uuid import UUID, uuid4
 
@@ -17,8 +18,8 @@ from app.adapters.storage import ObjectStorage
 from app.core.errors import NotFoundError, ValidationAppError
 from app.models import MediaKind, PatientMedia
 
-_ALLOWED_MIMES = {"image/jpeg", "image/png", "image/webp"}
 _MAX_BYTES = 8 * 1024 * 1024  # 8 MB
+_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp"}
 
 
 def strip_exif(data: bytes) -> tuple[bytes, str, tuple[int, int]]:
@@ -64,7 +65,7 @@ async def upload_media(
     raw_mime: str,
     uploader_user_id: UUID,
 ) -> PatientMedia:
-    if raw_mime not in _ALLOWED_MIMES:
+    if raw_mime not in _IMAGE_MIMES:
         raise ValidationAppError(f"Unsupported mime type: {raw_mime}")
 
     clean, mime, (width, height) = strip_exif(raw_bytes)
@@ -75,24 +76,29 @@ async def upload_media(
         visit_id=visit_id,
         kind=kind.value,
     )
-    uploaded = await storage.put_object(object_key=object_key, body=clean, mime_type=mime)
+    try:
+        uploaded = await storage.put_object(object_key=object_key, body=clean, mime_type=mime)
+    except Exception as exc:
+        raise ValidationAppError(
+            "Could not store the image. Check object storage configuration and try again."
+        ) from exc
 
-    async with session.begin():
-        row = PatientMedia(
-            clinic_id=clinic_id,
-            patient_id=patient_id,
-            visit_id=visit_id,
-            kind=kind,
-            object_key=uploaded.object_key,
-            mime_type=mime,
-            width_px=width,
-            height_px=height,
-            bytes_size=uploaded.bytes_size,
-            uploaded_by=uploader_user_id,
-        )
-        session.add(row)
-        await session.flush()
-        await session.refresh(row)
+    # require_user may already have an open transaction — do not nest begin().
+    row = PatientMedia(
+        clinic_id=clinic_id,
+        patient_id=patient_id,
+        visit_id=visit_id,
+        kind=kind,
+        object_key=uploaded.object_key,
+        mime_type=mime,
+        width_px=width,
+        height_px=height,
+        bytes_size=uploaded.bytes_size,
+        uploaded_by=uploader_user_id,
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
     return row
 
 
@@ -111,16 +117,48 @@ async def signed_url_for(
     return await storage.signed_get_url(media.object_key, ttl_seconds=ttl)
 
 
+async def pdf_embed_media_item(
+    storage: ObjectStorage,
+    *,
+    kind: str,
+    object_key: str,
+    mime_type: str,
+    captured_at_human: str,
+) -> dict[str, str | None]:
+    """Build a PDF-safe media dict with an inline base64 image when possible."""
+    item: dict[str, str | None] = {
+        "kind": kind,
+        "filename": object_key.rsplit("/", maxsplit=1)[-1] if object_key else "-",
+        "captured_at_human": captured_at_human,
+        "data_url": None,
+    }
+    if not object_key:
+        return item
+    try:
+        body, stored_mime = await storage.get_object(object_key)
+        if len(body) > _MAX_BYTES:
+            return item
+        content_type = mime_type if mime_type in _IMAGE_MIMES else stored_mime
+        if content_type not in _IMAGE_MIMES:
+            return item
+        encoded = base64.b64encode(body).decode("ascii")
+        item["data_url"] = f"data:{content_type};base64,{encoded}"
+    except Exception:
+        # Keep metadata-only row if object storage is temporarily unavailable.
+        return item
+    return item
+
+
 async def delete_media(
     session: AsyncSession,
     storage: ObjectStorage,
     *,
     media_id: UUID,
 ) -> None:
-    async with session.begin():
-        result = await session.execute(select(PatientMedia).where(PatientMedia.id == media_id))
-        m = result.scalar_one_or_none()
-        if m is None:
-            raise NotFoundError("Media not found.")
-        await storage.delete_object(m.object_key)
-        await session.delete(m)
+    result = await session.execute(select(PatientMedia).where(PatientMedia.id == media_id))
+    m = result.scalar_one_or_none()
+    if m is None:
+        raise NotFoundError("Media not found.")
+    await storage.delete_object(m.object_key)
+    await session.delete(m)
+    await session.commit()

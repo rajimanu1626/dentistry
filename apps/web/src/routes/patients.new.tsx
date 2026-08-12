@@ -65,42 +65,36 @@ function NewPatientPage() {
   }
 
   return (
-    <form className="card space-y-4" onSubmit={handleSubmit}>
+    <form className="card space-y-5" onSubmit={handleSubmit}>
       <h1 className="text-xl font-semibold">New patient</h1>
 
-      <div>
-        <label className="block text-sm font-medium" htmlFor="full_name">
-          Full name
-        </label>
+      <label className="field" htmlFor="full_name">
+        <span>Full name</span>
         <input
           id="full_name"
           required
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+          className="input mt-1"
           value={form.full_name}
           onChange={(e) => update('full_name', e.target.value)}
         />
-      </div>
+      </label>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium" htmlFor="dob">
-            Date of birth
-          </label>
+        <label className="field" htmlFor="dob">
+          <span>Date of birth</span>
           <input
             id="dob"
             type="date"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="input mt-1"
             value={form.date_of_birth}
             onChange={(e) => update('date_of_birth', e.target.value)}
           />
-        </div>
-        <div>
-          <label className="block text-sm font-medium" htmlFor="sex">
-            Sex
-          </label>
+        </label>
+        <label className="field" htmlFor="sex">
+          <span>Sex</span>
           <select
             id="sex"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="input mt-1"
             value={form.sex}
             onChange={(e) => update('sex', e.target.value)}
           >
@@ -109,61 +103,59 @@ function NewPatientPage() {
             <option value="M">M</option>
             <option value="other">other</option>
           </select>
-        </div>
+        </label>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium" htmlFor="phone">
-          Phone
-        </label>
+      <label className="field" htmlFor="phone">
+        <span>Phone</span>
         <input
           id="phone"
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+          className="input mt-1"
           value={form.phone}
           onChange={(e) => update('phone', e.target.value)}
         />
-      </div>
+      </label>
 
-      <div>
-        <label className="block text-sm font-medium" htmlFor="email">
-          Email
-        </label>
+      <label className="field" htmlFor="email">
+        <span>Email</span>
         <input
           id="email"
           type="email"
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+          className="input mt-1"
           value={form.email}
           onChange={(e) => update('email', e.target.value)}
         />
-      </div>
+      </label>
 
-      <div>
-        <label className="block text-sm font-medium" htmlFor="allergies">
-          Allergies (encrypted at rest)
-        </label>
+      <label className="field" htmlFor="allergies">
+        <span>Allergies (encrypted at rest)</span>
         <textarea
           id="allergies"
           rows={2}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+          className="input mt-1"
           value={form.allergies}
           onChange={(e) => update('allergies', e.target.value)}
         />
-      </div>
+      </label>
 
-      <div>
-        <label className="block text-sm font-medium" htmlFor="notes">
-          Notes
-        </label>
+      <label className="field" htmlFor="notes">
+        <span>Notes</span>
         <textarea
           id="notes"
           rows={3}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+          className="input mt-1"
           value={form.notes}
           onChange={(e) => update('notes', e.target.value)}
         />
-      </div>
+      </label>
 
-      {m.error && <p className="text-sm text-red-600">{(m.error as Error).message}</p>}
+      {m.error && (
+        <p className="text-sm text-red-600">
+          {(m.error as Error).message === 'Network Error'
+            ? 'Could not reach the API (often a missing clinic context or blocked CORS). Sign out, sign back in, then retry.'
+            : (m.error as Error).message}
+        </p>
+      )}
 
       <button type="submit" className="btn btn-primary" disabled={m.isPending}>
         {m.isPending ? 'Saving…' : 'Create patient'}

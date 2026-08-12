@@ -16,6 +16,8 @@
       "**/playwright-report",
       "**/test-results",
       "apps/api/**",
+      "apps/web/src/routeTree.gen.ts",
+      "**/routeTree.gen.ts",
       "packages/shared-types/src/generated/**"
     ]
   },

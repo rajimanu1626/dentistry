@@ -15,6 +15,8 @@ from app.db.session import clear_rls_context, set_rls_context
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests.rls.conftest import enter_rls_subject, enter_superuser
+
 pytestmark = [pytest.mark.asyncio, pytest.mark.rls, pytest.mark.integration]
 
 
@@ -24,6 +26,7 @@ async def _seed_two_clinics(db_session: AsyncSession) -> dict[str, str]:
     clinic_a, clinic_b = uuid4(), uuid4()
 
     async with db_session.begin():
+        await enter_superuser(db_session)
         await db_session.execute(text("SET LOCAL row_security = off;"))
         await db_session.execute(
             text("INSERT INTO users (id, email) VALUES (:ua, :ea), (:ub, :eb)"),
@@ -71,6 +74,7 @@ async def test_user_a_cannot_see_clinic_b_patients(db_session: AsyncSession) -> 
     async with db_session.begin():
         from uuid import UUID
 
+        await enter_rls_subject(db_session)
         await set_rls_context(db_session, user_id=UUID(ids["user_a"]))
         result = await db_session.execute(
             text("SELECT id, clinic_id, full_name FROM patients ORDER BY full_name;")
@@ -88,6 +92,7 @@ async def test_user_b_cannot_see_clinic_a_patients(db_session: AsyncSession) -> 
     async with db_session.begin():
         from uuid import UUID
 
+        await enter_rls_subject(db_session)
         await set_rls_context(db_session, user_id=UUID(ids["user_b"]))
         result = await db_session.execute(text("SELECT id, full_name FROM patients;"))
         rows = result.all()
@@ -100,6 +105,7 @@ async def test_unauthenticated_session_sees_nothing(db_session: AsyncSession) ->
     await _seed_two_clinics(db_session)
 
     async with db_session.begin():
+        await enter_rls_subject(db_session)
         await clear_rls_context(db_session)
         result = await db_session.execute(text("SELECT count(*) AS n FROM patients;"))
         n = result.scalar_one()
@@ -111,6 +117,7 @@ async def test_patient_share_grants_cross_clinic_visibility(db_session: AsyncSes
     ids = await _seed_two_clinics(db_session)
 
     async with db_session.begin():
+        await enter_superuser(db_session)
         await db_session.execute(text("SET LOCAL row_security = off;"))
         await db_session.execute(
             text(
@@ -129,6 +136,7 @@ async def test_patient_share_grants_cross_clinic_visibility(db_session: AsyncSes
     async with db_session.begin():
         from uuid import UUID
 
+        await enter_rls_subject(db_session)
         await set_rls_context(db_session, user_id=UUID(ids["user_b"]))
         result = await db_session.execute(
             text("SELECT full_name FROM patients ORDER BY full_name;")
@@ -142,6 +150,7 @@ async def test_expired_patient_share_loses_visibility(db_session: AsyncSession) 
     ids = await _seed_two_clinics(db_session)
 
     async with db_session.begin():
+        await enter_superuser(db_session)
         await db_session.execute(text("SET LOCAL row_security = off;"))
         await db_session.execute(
             text(
@@ -160,6 +169,7 @@ async def test_expired_patient_share_loses_visibility(db_session: AsyncSession) 
     async with db_session.begin():
         from uuid import UUID
 
+        await enter_rls_subject(db_session)
         await set_rls_context(db_session, user_id=UUID(ids["user_b"]))
         result = await db_session.execute(
             text("SELECT full_name FROM patients WHERE clinic_id = :ca;"),
@@ -174,6 +184,7 @@ async def test_revoked_patient_share_loses_visibility(db_session: AsyncSession) 
     ids = await _seed_two_clinics(db_session)
 
     async with db_session.begin():
+        await enter_superuser(db_session)
         await db_session.execute(text("SET LOCAL row_security = off;"))
         await db_session.execute(
             text(
@@ -192,6 +203,7 @@ async def test_revoked_patient_share_loses_visibility(db_session: AsyncSession) 
     async with db_session.begin():
         from uuid import UUID
 
+        await enter_rls_subject(db_session)
         await set_rls_context(db_session, user_id=UUID(ids["user_b"]))
         result = await db_session.execute(
             text("SELECT full_name FROM patients WHERE clinic_id = :ca;"),
@@ -205,6 +217,7 @@ async def test_revoked_patient_share_loses_visibility(db_session: AsyncSession) 
 async def test_patient_code_auto_generated(db_session: AsyncSession) -> None:
     """The BEFORE INSERT trigger assigns DC-YYYY-NNNNN per clinic."""
     async with db_session.begin():
+        await enter_superuser(db_session)
         await db_session.execute(text("SET LOCAL row_security = off;"))
         clinic_id = uuid4()
         await db_session.execute(
@@ -229,6 +242,7 @@ async def test_patient_code_auto_generated(db_session: AsyncSession) -> None:
 async def test_pgcrypto_round_trip_for_phi_column(db_session: AsyncSession) -> None:
     """phone_enc is stored encrypted but decrypts with the key."""
     async with db_session.begin():
+        await enter_superuser(db_session)
         await db_session.execute(text("SET LOCAL row_security = off;"))
         clinic_id = uuid4()
         await db_session.execute(

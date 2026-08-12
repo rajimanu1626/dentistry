@@ -43,7 +43,7 @@ function PlatformConsolePage() {
   const [groupOwnerId, setGroupOwnerId] = useState('');
   const [inviteClinicId, setInviteClinicId] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'owner' | 'dentist'>('owner');
+  const [inviteRole, setInviteRole] = useState<'owner' | 'dentist' | 'receptionist'>('owner');
   const [inviteResult, setInviteResult] = useState<PlatformInviteCreated | null>(null);
 
   const createClinicMutation = useMutation({
@@ -263,10 +263,13 @@ function PlatformConsolePage() {
                   <select
                     className="input mt-1 w-full"
                     value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value as 'owner' | 'dentist')}
+                    onChange={(e) =>
+                      setInviteRole(e.target.value as 'owner' | 'dentist' | 'receptionist')
+                    }
                   >
                     <option value="owner">Owner</option>
                     <option value="dentist">Dentist</option>
+                    <option value="receptionist">Receptionist</option>
                   </select>
                 </label>
                 <button

@@ -207,8 +207,9 @@ export const patientsApi = {
     form.append('file', body.file);
     form.append('kind', body.kind);
     if (body.visit_id) form.append('visit_id', body.visit_id);
+    // Do not set Content-Type manually — browser must add the multipart boundary.
     return apiClient.post<PatientMediaItem>(`/patients/${patientId}/media`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60_000,
     });
   },
   createExternalShare: (patientId: string, body: ExternalShareCreatePayload) =>

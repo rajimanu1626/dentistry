@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.storage import ObjectStorage, get_storage
 from app.core.config import Settings, get_settings
 from app.core.errors import ForbiddenError, NotFoundError
 from app.db.session import get_session
@@ -25,8 +26,14 @@ from app.schemas.visits import (
     VisitSummaryPublic,
     VisitUpdate,
 )
+from app.services import media as media_service
 from app.services import visits as service
-from app.services.pdf import DEFAULT_PRESCRIPTION_TEMPLATE_HTML, render_pdf, utc_now_iso
+from app.services.pdf import (
+    DEFAULT_PRESCRIPTION_TEMPLATE_HTML,
+    PDF_MEDIA_SECTION_HTML,
+    render_pdf,
+    utc_now_iso,
+)
 
 visits_router = APIRouter(prefix="/visits", tags=["visits"])
 rx_router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
@@ -127,8 +134,10 @@ async def get_visit_summary(
 @visits_router.get("/{visit_id}/summary/pdf", response_class=Response)
 async def render_visit_summary_pdf(
     visit_id: UUID,
+    include_media: bool = Query(default=False),
     principal: Principal = Depends(require_clinical_access),
     session: AsyncSession = Depends(get_session),
+    storage: ObjectStorage = Depends(get_storage),
 ) -> Response:
     _require_clinic(principal)
     summary = await service.get_visit_summary(session, visit_id=visit_id)
@@ -137,17 +146,21 @@ async def render_visit_summary_pdf(
         [p.model_dump(mode="json") for p in summary.prescriptions],
         key=lambda rx: rx.get("created_at") or "",
     )
-    media_items = [
-        {
-            "kind": item.get("kind") or "other",
-            "filename": (item.get("object_key") or "").split("/")[-1] or "-",
-            "captured_at_raw": item.get("created_at") or "",
-            "captured_at_human": _humanize_datetime(item.get("created_at")),
-        }
-        for item in summary.media
-        if item.get("visit_id") in {None, visit_id_str}
-    ]
-    media_items.sort(key=lambda media: media["captured_at_raw"])
+    media_items: list[dict[str, str | None]] = []
+    if include_media:
+        for item in summary.media:
+            if item.get("visit_id") not in {None, visit_id_str}:
+                continue
+            media_items.append(
+                await media_service.pdf_embed_media_item(
+                    storage,
+                    kind=item.get("kind") or "other",
+                    object_key=item.get("object_key") or "",
+                    mime_type=item.get("mime_type") or "image/jpeg",
+                    captured_at_human=_humanize_datetime(item.get("created_at")),
+                )
+            )
+        media_items.sort(key=lambda media: media.get("captured_at_human") or "")
 
     html_template = """
     <html>
@@ -178,18 +191,10 @@ async def render_visit_summary_pdf(
             </div>
           {% endfor %}
         {% endif %}
-        <h2>Media attached</h2>
-        {% if media_items|length == 0 %}
-          <p>No media attached for this visit.</p>
-        {% else %}
-          <ul>
-            {% for media in media_items %}
-              <li>
-                {{ media.kind }} - {{ media.filename }} - {{ media.captured_at_human }}
-              </li>
-            {% endfor %}
-          </ul>
-        {% endif %}
+    """
+    if include_media:
+        html_template += PDF_MEDIA_SECTION_HTML
+    html_template += """
       </body>
     </html>
     """

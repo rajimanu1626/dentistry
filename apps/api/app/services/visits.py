@@ -17,6 +17,7 @@ from app.models import (
     PrescriptionTemplate,
     Visit,
 )
+from app.models.enums import enum_str
 from app.schemas.visits import (
     PrescriptionCreate,
     PrescriptionPublic,
@@ -316,7 +317,7 @@ async def get_patient_history(
                     event_time=row.taken_at or row.created_at,
                     visit_id=row.visit_id,
                     patient_id=row.patient_id,
-                    title=f"Media uploaded ({row.kind.value})",
+                    title=f"Media uploaded ({enum_str(row.kind)})",
                     summary=row.object_key,
                     metadata={"mime_type": row.mime_type, "object_key": row.object_key},
                 )
@@ -336,7 +337,7 @@ async def get_patient_history(
                     event_time=row.created_at,
                     patient_id=row.patient_id,
                     title="Internal share created",
-                    summary=f"role={row.role.value}",
+                    summary=f"role={enum_str(row.role)}",
                     metadata={
                         "grantee_user_id": str(row.grantee_user_id),
                         "expires_at": row.expires_at.isoformat(),
@@ -411,7 +412,7 @@ async def get_visit_summary(
     media = [
         {
             "id": str(row.id),
-            "kind": row.kind.value,
+            "kind": enum_str(row.kind),
             "object_key": row.object_key,
             "mime_type": row.mime_type,
             "created_at": row.created_at.isoformat(),

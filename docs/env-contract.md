@@ -28,23 +28,30 @@ portability check in `scripts/check_portability.py` lives alongside.
 
 | Var | Required? | Provider examples |
 |---|---|---|
-| `DATABASE_URL` | yes | `postgresql+asyncpg://...` — Supabase / RDS / local |
-| `DATABASE_URL_SYNC` | yes | `postgresql+psycopg://...` — for Alembic |
-| `DATABASE_POOL_SIZE` | no | default 10 |
+| `DATABASE_URL` | yes | `postgresql+asyncpg://...` — Neon / Supabase / RDS / local. For Neon pooler use `?ssl=require` (not `sslmode` / `channel_binding`). |
+| `DATABASE_URL_SYNC` | yes | `postgresql+psycopg://...` — for Alembic. On Neon use the **direct** (non-`-pooler`) host + `sslmode=require`. |
+| `DATABASE_POOL_SIZE` | no | default 10 (prefer ≤5 on small Neon computes) |
 | `DATABASE_MAX_OVERFLOW` | no | default 5 |
 
 ### Identity (portable)
 
 | Var | Notes |
 |---|---|
-| `IDENTITY_PROVIDER` | `local` (dev) / `supabase` / `cognito` |
-| `JWT_ISSUER` | issuer claim — pool URL on Cognito, project URL on Supabase |
-| `JWT_AUDIENCE` | audience claim — client_id on Cognito, project on Supabase |
+| `IDENTITY_PROVIDER` | `local` (dev) / `neon` / `supabase` / `cognito` |
+| `JWT_ISSUER` | issuer claim — Neon Auth **origin** (no `/neondb/auth`), Cognito pool URL, Supabase project URL |
+| `JWT_AUDIENCE` | audience claim — Neon Auth origin, Cognito client_id, Supabase project |
 | `JWT_SIGNING_KEY` | **local only** — HS256 signing key |
-| `JWKS_URL` | required when `IDENTITY_PROVIDER` ≠ `local` |
+| `JWKS_URL` | required when `IDENTITY_PROVIDER` ≠ `local` (Neon: `…/neondb/auth/.well-known/jwks.json`) |
 | `JWKS_CACHE_TTL_SECONDS` | default 3600 |
 | `JWT_ACCESS_TOKEN_TTL_SECONDS` | default 900 |
 | `JWT_REFRESH_TOKEN_TTL_SECONDS` | default 2_592_000 |
+
+### Frontend (Vite)
+
+| Var | Notes |
+|---|---|
+| `VITE_API_BASE_URL` | API origin for production builds (e.g. `https://clinic-crm-api.fly.dev`) |
+| `VITE_NEON_AUTH_URL` | Neon Auth URL. Prefer same-origin `/neon-auth` (Cloudflare Pages Function proxy) so Safari can store the session cookie. Direct `*.neonauth.*` URLs fail under Safari ITP. |
 
 ### Object storage (portable S3 interface)
 
@@ -97,11 +104,11 @@ portability check in `scripts/check_portability.py` lives alongside.
 
 Switching providers is **only** an env-var change:
 
-| Capability | Local dev | Supabase prod | AWS prod |
+| Capability | Local dev | Neon | AWS prod |
 |---|---|---|---|
-| Identity | `IDENTITY_PROVIDER=local` + `JWT_SIGNING_KEY` | `=supabase` + `JWKS_URL=<project>.supabase.co/auth/v1/keys` | `=cognito` + Cognito JWKS |
-| DB | `postgres:16-alpine` via compose | Supabase Postgres | RDS Postgres 16 |
-| Storage | MinIO via compose | Supabase Storage (S3 endpoint) | AWS S3 |
+| Identity | `IDENTITY_PROVIDER=local` + `JWT_SIGNING_KEY` | `=neon` + Neon Auth JWKS (EdDSA) | `=cognito` + Cognito JWKS |
+| DB | `postgres:16-alpine` via compose | Neon Postgres (pooler app / direct Alembic) | RDS Postgres 16 |
+| Storage | MinIO via compose | S3-compatible (or keep MinIO in early staging) | AWS S3 |
 | Mail | mailhog | SES / SendGrid | SES |
 
 No code changes between columns — only env values. That's the whole point of

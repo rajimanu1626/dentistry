@@ -11,6 +11,7 @@ from app.models.enums import (
     ShareRole,
     ShareStatus,
     SystemRole,
+    enum_str,
 )
 from app.models.tables import (
     AuditLog,
@@ -48,4 +49,5 @@ __all__ = [
     "SystemRole",
     "User",
     "Visit",
+    "enum_str",
 ]

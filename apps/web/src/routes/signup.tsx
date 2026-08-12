@@ -49,10 +49,12 @@ function SignupPage() {
 
   const canSubmit = useMemo(() => {
     if (!config?.can_signup) return false;
-    if (requiresInvite && !inviteToken.trim()) return false;
+    // Invite is required only when bootstrapping is closed AND the user is
+    // joining a clinic for the first time. Existing members can leave it blank
+    // and sign up with the same email to link Neon Auth.
     if (showClinicFields && (!clinicName.trim() || !clinicSlug.trim())) return false;
     return true;
-  }, [config, requiresInvite, inviteToken, showClinicFields, clinicName, clinicSlug]);
+  }, [config, showClinicFields, clinicName, clinicSlug]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -89,10 +91,11 @@ function SignupPage() {
   return (
     <div className="mx-auto max-w-md space-y-6">
       <header className="text-center">
-        <h1 className="text-2xl font-semibold">Create account</h1>
+        <p className="font-display text-3xl font-semibold tracking-tight text-brand">Clinic Desk</p>
+        <h1 className="mt-3 text-xl font-semibold text-slate-900">Create account</h1>
         <p className="mt-1 text-sm text-slate-600">
           {requiresInvite
-            ? 'Use the invite link or token from your clinic admin.'
+            ? "Paste a clinic invite if you're joining for the first time. Already a member? Use the same email to link Neon Auth."
             : showClinicFields
               ? 'Register the first clinic on this instance.'
               : 'Complete the form below.'}
@@ -100,7 +103,7 @@ function SignupPage() {
       </header>
 
       <form
-        className="card space-y-4"
+        className="card space-y-5"
         onSubmit={(e) => {
           e.preventDefault();
           if (!canSubmit) return;
@@ -111,12 +114,11 @@ function SignupPage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         {requiresInvite && (
-          <label className="block text-sm">
-            <span className="font-medium text-slate-700">Invite token</span>
+          <label className="field">
+            <span>Invite token (optional if you already have access)</span>
             <input
               type="text"
-              required
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs"
+              className="input input-mono mt-1"
               value={inviteToken}
               onChange={(e) => setInviteToken(e.target.value)}
               placeholder="Paste token from your invite email"
@@ -124,36 +126,36 @@ function SignupPage() {
           </label>
         )}
 
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">Full name</span>
+        <label className="field">
+          <span>Full name</span>
           <input
             type="text"
             required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="input mt-1"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
           />
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">Email</span>
+        <label className="field">
+          <span>Email</span>
           <input
             type="email"
             required
             autoComplete="email"
             readOnly={Boolean(emailFromUrl)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 read-only:bg-slate-50"
+            className="input mt-1"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">Password</span>
+        <label className="field">
+          <span>Password</span>
           <input
             type="password"
             required
             minLength={10}
             autoComplete="new-password"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="input mt-1"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -162,12 +164,12 @@ function SignupPage() {
 
         {showClinicFields && (
           <>
-            <label className="block text-sm">
-              <span className="font-medium text-slate-700">Clinic name</span>
+            <label className="field">
+              <span>Clinic name</span>
               <input
                 type="text"
                 required
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="input mt-1"
                 value={clinicName}
                 onChange={(e) => {
                   setClinicName(e.target.value);
@@ -177,13 +179,13 @@ function SignupPage() {
                 }}
               />
             </label>
-            <label className="block text-sm">
-              <span className="font-medium text-slate-700">Clinic URL slug</span>
+            <label className="field">
+              <span>Clinic URL slug</span>
               <input
                 type="text"
                 required
                 pattern="^[a-z0-9][a-z0-9\-]{1,79}$"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm"
+                className="input input-mono mt-1"
                 value={clinicSlug}
                 onChange={(e) => setClinicSlug(e.target.value)}
               />
