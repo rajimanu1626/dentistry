@@ -35,6 +35,20 @@ curl -fsS http://localhost:8000/auth/config
 - Verify owner is sending `X-Clinic-Id` when creating/listing/revoking invites.
 - For local identity mode, use `/settings/security` to rotate passwords if credentials changed.
 
+### Production Neon Auth POST → HTTP 405
+
+`POST /neon-auth/sign-in/email` returning **405** with an empty body means the Cloudflare
+Pages Function was not deployed. Wrangler only bundles `functions/` when you deploy
+**from `apps/web`** (not `apps/web/dist` from the repo root).
+
+```bash
+make deploy-web
+# or:
+cd apps/web && bunx wrangler pages deploy dist --project-name=clinic-crm-web --branch=main
+```
+
+Healthy sign-in against a wrong password should be **401** JSON from Neon, not 405.
+
 ## 4) If patient create/update fails
 
 - Ensure every patient endpoint includes `X-Clinic-Id`.
