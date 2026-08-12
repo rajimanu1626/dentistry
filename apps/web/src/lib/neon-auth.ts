@@ -110,33 +110,75 @@ function captureJwtOnSuccess(store: { jwt: string | null }) {
   };
 }
 
+/**
+ * Neon Managed Auth allows GET /get-session only. Newer Better Auth clients may
+ * POST /get-session when `needsRefresh` is set, which returns HTTP 405
+ * (`METHOD_NOT_ALLOWED_DEFER_SESSION_REQUIRED`). Prefer plain GET fetches for JWTs.
+ */
+async function fetchJwtViaGet(): Promise<string | null> {
+  const base = resolveNeonAuthUrl();
+  if (!base) return null;
+
+  const tokenRes = await fetch(`${base}/token`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  if (tokenRes.ok) {
+    const body = (await tokenRes.json().catch(() => null)) as { token?: string } | null;
+    const token = body?.token;
+    if (typeof token === 'string' && isJwksAccessToken(token)) {
+      return token;
+    }
+  }
+
+  const sessionRes = await fetch(`${base}/get-session`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  if (sessionRes.ok) {
+    const header = sessionRes.headers.get('set-auth-jwt');
+    if (typeof header === 'string' && isJwksAccessToken(header)) {
+      return header;
+    }
+    const body = (await sessionRes.json().catch(() => null)) as {
+      session?: { token?: string } | null;
+    } | null;
+    const sessionToken = body?.session?.token;
+    if (typeof sessionToken === 'string' && isJwksAccessToken(sessionToken)) {
+      return sessionToken;
+    }
+  }
+
+  return null;
+}
+
 /** Fetch a short-lived JWT for Authorization: Bearer. */
 export async function fetchNeonAccessToken(): Promise<string> {
-  const client = requireNeonAuthClient();
+  // Always try GET first — avoids the Better Auth POST /get-session → 405 trap.
+  const viaGet = await fetchJwtViaGet();
+  if (viaGet) return viaGet;
 
-  const { data, error } = await client.token();
-  const tokenFromEndpoint = data?.token;
-  if (!error && isJwksAccessToken(tokenFromEndpoint)) {
-    return tokenFromEndpoint as string;
+  // Fallback through the SDK (may throw AuthApiError on non-2xx).
+  try {
+    const client = requireNeonAuthClient();
+    const { data, error } = await client.token();
+    const token = data?.token;
+    if (!error && typeof token === 'string' && isJwksAccessToken(token)) {
+      return token;
+    }
+    if (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to obtain Neon Auth token.');
+    }
+  } catch (err) {
+    const msg = neonAuthErrorMessage(err);
+    if (/405|METHOD_NOT_ALLOWED/i.test(msg)) {
+      throw new Error(
+        'Neon Auth session refresh failed (HTTP 405). Hard-refresh and sign in again.',
+      );
+    }
+    throw err instanceof Error ? err : new Error(msg);
   }
 
-  const captured = { jwt: null as string | null };
-  const sessionResult = await client.getSession({
-    fetchOptions: captureJwtOnSuccess(captured),
-  });
-
-  if (captured.jwt && isJwksAccessToken(captured.jwt)) {
-    return captured.jwt;
-  }
-
-  const sessionToken = sessionResult.data?.session?.token;
-  if (typeof sessionToken === 'string' && isJwksAccessToken(sessionToken)) {
-    return sessionToken;
-  }
-
-  if (error) {
-    throw new Error(error instanceof Error ? error.message : 'Failed to obtain Neon Auth token.');
-  }
   throw new Error('Neon Auth did not return a JWT. Sign out, hard-refresh, and sign in again.');
 }
 
@@ -144,13 +186,26 @@ export async function fetchNeonAccessToken(): Promise<string> {
 export async function neonSignIn(email: string, password: string): Promise<string> {
   const client = requireNeonAuthClient();
   const captured = { jwt: null as string | null };
-  const result = await client.signIn.email({
-    email,
-    password,
-    fetchOptions: captureJwtOnSuccess(captured),
-  });
-  if (result.error) {
-    throw Object.assign(new Error(neonAuthErrorMessage(result.error)), {
+  try {
+    const result = await client.signIn.email({
+      email,
+      password,
+      fetchOptions: captureJwtOnSuccess(captured),
+    });
+    if (result.error) {
+      throw Object.assign(new Error(neonAuthErrorMessage(result.error)), {
+        status: 401,
+        code: 'unauthorized',
+      });
+    }
+  } catch (err) {
+    if (err && typeof err === 'object' && 'status' in err && 'code' in err) {
+      throw Object.assign(new Error(neonAuthErrorMessage(err)), {
+        status: (err as { status?: number }).status ?? 401,
+        code: (err as { code?: string }).code ?? 'unauthorized',
+      });
+    }
+    throw Object.assign(new Error(neonAuthErrorMessage(err)), {
       status: 401,
       code: 'unauthorized',
     });
@@ -167,14 +222,27 @@ export async function neonSignUp(input: {
 }): Promise<string> {
   const client = requireNeonAuthClient();
   const captured = { jwt: null as string | null };
-  const result = await client.signUp.email({
-    name: input.name,
-    email: input.email,
-    password: input.password,
-    fetchOptions: captureJwtOnSuccess(captured),
-  });
-  if (result.error) {
-    throw Object.assign(new Error(neonAuthErrorMessage(result.error)), {
+  try {
+    const result = await client.signUp.email({
+      name: input.name,
+      email: input.email,
+      password: input.password,
+      fetchOptions: captureJwtOnSuccess(captured),
+    });
+    if (result.error) {
+      throw Object.assign(new Error(neonAuthErrorMessage(result.error)), {
+        status: 400,
+        code: 'signup_failed',
+      });
+    }
+  } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err) {
+      throw Object.assign(new Error(neonAuthErrorMessage(err)), {
+        status: (err as { status?: number }).status ?? 400,
+        code: (err as { code?: string }).code ?? 'signup_failed',
+      });
+    }
+    throw Object.assign(new Error(neonAuthErrorMessage(err)), {
       status: 400,
       code: 'signup_failed',
     });
@@ -186,7 +254,12 @@ export async function neonSignUp(input: {
 export function neonAuthErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error) {
     const msg = (error as { message?: unknown }).message;
-    if (typeof msg === 'string' && msg.trim()) return msg;
+    if (typeof msg === 'string' && msg.trim()) {
+      if (/405|METHOD_NOT_ALLOWED_DEFER/i.test(msg)) {
+        return 'Sign-in hit a Neon Auth session refresh error. Please hard-refresh and try again.';
+      }
+      return msg;
+    }
   }
   if (error instanceof Error && error.message) return error.message;
   return 'Authentication failed.';
