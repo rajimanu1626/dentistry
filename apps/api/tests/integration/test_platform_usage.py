@@ -52,7 +52,9 @@ async def test_platform_usage_lists_clinics(
     db_session: AsyncSession,
 ) -> None:
     await _bootstrap_clinic(api_client)
-    admin_email = await _create_platform_admin(db_session, email=f"platform-{uuid4().hex[:8]}@example.com")
+    admin_email = await _create_platform_admin(
+        db_session, email=f"platform-{uuid4().hex[:8]}@example.com"
+    )
     login = await api_client.post(
         "/auth/login",
         json={"email": admin_email, "password": "StrongPass123!"},
@@ -78,7 +80,9 @@ async def test_platform_usage_plans_and_recompute(
     db_session: AsyncSession,
 ) -> None:
     _, clinic_id = await _bootstrap_clinic(api_client)
-    admin_email = await _create_platform_admin(db_session, email=f"platform-{uuid4().hex[:8]}@example.com")
+    admin_email = await _create_platform_admin(
+        db_session, email=f"platform-{uuid4().hex[:8]}@example.com"
+    )
     login = await api_client.post(
         "/auth/login",
         json={"email": admin_email, "password": "StrongPass123!"},
