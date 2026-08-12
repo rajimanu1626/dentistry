@@ -174,6 +174,14 @@ async def unlock_share(
         settings=settings,
         identity=identity,
     )
+    from app.services import platform_usage as usage_service
+
+    await usage_service.record_usage_event(
+        session,
+        clinic_id=share.clinic_id,
+        event_type="share_unlock",
+        metadata={"share_id": str(share.id)},
+    )
     return ExternalUnlockResponse(
         share_session_token=token_str,
         expires_in=15 * 60,

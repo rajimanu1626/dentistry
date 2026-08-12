@@ -78,3 +78,16 @@ class S3Storage(ObjectStorage):
             None,
             functools.partial(self._client.delete_object, Bucket=self._bucket, Key=object_key),
         )
+
+    async def sum_prefix_bytes(self, prefix: str) -> tuple[int, int]:
+        def _sum() -> tuple[int, int]:
+            total_bytes = 0
+            total_count = 0
+            paginator = self._client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+                for obj in page.get("Contents") or []:
+                    total_bytes += int(obj.get("Size") or 0)
+                    total_count += 1
+            return total_bytes, total_count
+
+        return await asyncio.get_running_loop().run_in_executor(None, _sum)
