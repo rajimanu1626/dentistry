@@ -456,18 +456,137 @@ class AuditLog(Base):
     created_at: Mapped[CreatedAt]
 
 
+# --------------------------------------------------------------------------- #
+# Platform usage / billing (metadata only — no PHI)
+# --------------------------------------------------------------------------- #
+
+
+class UsagePlan(Base):
+    """Global plan limits; managed by platform admins only."""
+
+    __tablename__ = "usage_plans"
+
+    id: Mapped[UUIDPk]
+    name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    included_media_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    included_db_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    max_members: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[CreatedAt]
+    updated_at: Mapped[UpdatedAt]
+
+
+class ClinicPlanAssignment(Base):
+    __tablename__ = "clinic_plan_assignments"
+    __table_args__ = (
+        Index("ix_clinic_plan_assignments_clinic", "clinic_id"),
+        Index("ix_clinic_plan_assignments_plan", "plan_id"),
+    )
+
+    id: Mapped[UUIDPk]
+    clinic_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("clinics.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    plan_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("usage_plans.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[CreatedAt]
+
+
+class ClinicUsageSnapshot(Base):
+    __tablename__ = "clinic_usage_snapshots"
+    __table_args__ = (
+        UniqueConstraint("clinic_id", "snapshot_date", name="uq_clinic_usage_snapshots_day"),
+        Index("ix_clinic_usage_snapshots_clinic_date", "clinic_id", "snapshot_date"),
+    )
+
+    id: Mapped[UUIDPk]
+    clinic_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("clinics.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
+    media_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    media_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    patients_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    visits_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    prescriptions_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    members_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    audit_rows_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    active_external_shares_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    db_bytes_estimated: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("0")
+    )
+    s3_bytes_reconciled: Mapped[int | None] = mapped_column(BigInteger)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class UsageEvent(Base):
+    __tablename__ = "usage_events"
+    __table_args__ = (
+        Index("ix_usage_events_clinic_ts", "clinic_id", "created_at"),
+        Index("ix_usage_events_type", "event_type"),
+    )
+
+    id: Mapped[UUIDPk]
+    clinic_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("clinics.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+    metadata_: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[CreatedAt]
+
+
+class ClinicInfraCost(Base):
+    __tablename__ = "clinic_infra_costs"
+    __table_args__ = (Index("ix_clinic_infra_costs_clinic_period", "clinic_id", "period_start"),)
+
+    id: Mapped[UUIDPk]
+    clinic_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("clinics.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    cost_paise: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False, server_default=text("'manual'"))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[CreatedAt]
+
+
 __all__ = [
     "AuditLog",
     "Clinic",
     "ClinicGroup",
+    "ClinicInfraCost",
     "ClinicInvite",
     "ClinicMember",
+    "ClinicPlanAssignment",
+    "ClinicUsageSnapshot",
     "ExternalShareLink",
     "Patient",
     "PatientMedia",
     "PatientShare",
     "Prescription",
     "PrescriptionTemplate",
+    "UsageEvent",
+    "UsagePlan",
     "User",
     "Visit",
 ]

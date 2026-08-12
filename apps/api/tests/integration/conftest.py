@@ -98,6 +98,8 @@ async def db_session(database_url: str) -> AsyncIterator[AsyncSession]:
                 "TRUNCATE TABLE audit_log, external_share_links, patient_shares, "
                 "patient_media, prescriptions, prescription_templates, visits, "
                 "patients, clinic_invites, clinic_members, clinics, clinic_groups, "
+                "clinic_usage_snapshots, clinic_plan_assignments, usage_events, "
+                "clinic_infra_costs, "
                 "users RESTART IDENTITY CASCADE;"
             )
         )

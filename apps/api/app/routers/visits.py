@@ -207,6 +207,15 @@ async def render_visit_summary_pdf(
             "media_items": media_items,
         },
     )
+    from app.services import platform_usage as usage_service
+
+    if principal.current_clinic_id is not None:
+        await usage_service.record_usage_event(
+            session,
+            clinic_id=principal.current_clinic_id,
+            event_type="pdf_export",
+            metadata={"kind": "visit_summary", "visit_id": str(visit_id)},
+        )
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -284,6 +293,14 @@ async def render_prescription_pdf(
             "generated_at": utc_now_iso(),
         },
         css=css,
+    )
+    from app.services import platform_usage as usage_service
+
+    await usage_service.record_usage_event(
+        session,
+        clinic_id=rx.clinic_id,
+        event_type="pdf_export",
+        metadata={"kind": "prescription", "prescription_id": str(rx_id)},
     )
 
     return Response(

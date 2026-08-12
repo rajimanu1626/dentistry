@@ -216,6 +216,15 @@ async def render_patient_history_pdf(
         html_template,
         context={"patient": patient.model_dump(mode="json"), "visits": visit_blocks},
     )
+    from app.services import platform_usage as usage_service
+
+    clinic_id = _require_clinic(principal)
+    await usage_service.record_usage_event(
+        session,
+        clinic_id=clinic_id,
+        event_type="pdf_export",
+        metadata={"kind": "patient_history", "patient_id": str(patient_id)},
+    )
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

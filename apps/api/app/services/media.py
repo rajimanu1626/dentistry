@@ -70,6 +70,12 @@ async def upload_media(
 
     clean, mime, (width, height) = strip_exif(raw_bytes)
 
+    from app.services import platform_usage as usage_service
+
+    await usage_service.assert_media_upload_allowed(
+        session, clinic_id=clinic_id, incoming_bytes=len(clean)
+    )
+
     object_key = build_object_key(
         clinic_id=clinic_id,
         patient_id=patient_id,
@@ -99,6 +105,15 @@ async def upload_media(
     session.add(row)
     await session.commit()
     await session.refresh(row)
+
+    from app.services import platform_usage as usage_service
+
+    await usage_service.record_usage_event(
+        session,
+        clinic_id=clinic_id,
+        event_type="media_upload",
+        metadata={"bytes": str(uploaded.bytes_size), "kind": kind.value},
+    )
     return row
 
 

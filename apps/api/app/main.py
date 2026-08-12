@@ -24,7 +24,7 @@ from app.core.errors import (
     validation_exception_handler,
 )
 from app.core.logging import configure_logging, get_logger
-from app.routers import auth, dashboard, health, media, patients, platform, visits
+from app.routers import auth, dashboard, health, media, patients, platform, platform_usage, visits
 from app.sharing import router as sharing_router
 
 
@@ -80,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(dashboard.router)
     app.include_router(platform.router)
+    app.include_router(platform_usage.router)
     app.include_router(patients.router)
     app.include_router(visits.visits_router)
     app.include_router(visits.history_router)
