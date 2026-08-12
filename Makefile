@@ -1,5 +1,5 @@
 .PHONY: help install dev compose-up compose-down compose-logs db-migrate db-revision \
-	test test-api test-web lint format portability clean
+	test test-api test-web lint format portability clean deploy-api deploy-web deploy
 
 COMPOSE := docker compose -f infra/compose/docker-compose.yml
 
@@ -43,6 +43,15 @@ format: ## Format everything
 
 portability: ## Verify portability invariants
 	python3 scripts/check_portability.py
+
+deploy-api: ## Deploy API to Fly.io (local)
+	fly deploy --config infra/fly/fly.toml --dockerfile infra/docker/api.Dockerfile --remote-only
+
+deploy-web: ## Deploy web to Cloudflare Pages (MUST run from apps/web so functions/ ships)
+	cd apps/web && VITE_API_BASE_URL=$${PROD_API_BASE_URL:-https://clinic-crm-api.fly.dev} VITE_NEON_AUTH_URL=/neon-auth bun run build
+	cd apps/web && bunx wrangler pages deploy dist --project-name=clinic-crm-web --branch=main --commit-dirty=true
+
+deploy: deploy-api deploy-web ## Deploy API + web from local machine
 
 clean: ## Remove caches + build artifacts
 	rm -rf apps/api/.venv apps/api/.pytest_cache apps/api/.mypy_cache apps/api/.ruff_cache
