@@ -34,7 +34,12 @@ TENANT_USAGE_TABLES = (
 def upgrade() -> None:
     op.create_table(
         "usage_plans",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("name", sa.String(120), nullable=False, unique=True),
         sa.Column("included_media_bytes", sa.BigInteger(), nullable=False),
         sa.Column("included_db_bytes", sa.BigInteger(), nullable=False),
@@ -55,7 +60,12 @@ def upgrade() -> None:
 
     op.create_table(
         "clinic_plan_assignments",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column(
             "clinic_id",
             postgresql.UUID(as_uuid=True),
@@ -82,7 +92,12 @@ def upgrade() -> None:
 
     op.create_table(
         "clinic_usage_snapshots",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column(
             "clinic_id",
             postgresql.UUID(as_uuid=True),
@@ -111,7 +126,12 @@ def upgrade() -> None:
 
     op.create_table(
         "usage_events",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column(
             "clinic_id",
             postgresql.UUID(as_uuid=True),
@@ -138,7 +158,12 @@ def upgrade() -> None:
 
     op.create_table(
         "clinic_infra_costs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column(
             "clinic_id",
             postgresql.UUID(as_uuid=True),
