@@ -11,6 +11,7 @@ import {
   isNeonAuthEnabled,
   neonAuthErrorMessage,
   neonSignIn,
+  neonSignOut,
   neonSignUp,
   requireNeonAuthClient,
 } from '@/lib/neon-auth';
@@ -261,7 +262,7 @@ export function defaultHomePath(me: MeResponse): string {
 export async function logout(): Promise<void> {
   if (isNeonAuthEnabled) {
     try {
-      await requireNeonAuthClient().signOut();
+      await neonSignOut();
     } catch {
       // still clear local session
     }
