@@ -99,7 +99,7 @@ async def db_session(database_url: str) -> AsyncIterator[AsyncSession]:
                 "patient_media, prescriptions, prescription_templates, visits, "
                 "patients, clinic_invites, clinic_members, clinics, clinic_groups, "
                 "clinic_usage_snapshots, clinic_plan_assignments, usage_events, "
-                "clinic_infra_costs, usage_plans, "
+                "clinic_infra_costs, "
                 "users RESTART IDENTITY CASCADE;"
             )
         )
