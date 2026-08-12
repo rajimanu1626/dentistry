@@ -14,7 +14,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from uuid import UUID
+from typing import Any
+from uuid import UUID, uuid4
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -30,16 +31,32 @@ _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
+def _asyncpg_connect_args(database_url: str) -> dict[str, Any]:
+    """PgBouncer/Neon pooler-safe asyncpg options.
+
+    Transaction-mode poolers (Neon ``-pooler`` host, Supabase pooler) break
+    asyncpg's prepared-statement cache unless we disable it / uniquify names.
+    """
+    if "-pooler" not in database_url and "pgbouncer=true" not in database_url.lower():
+        return {}
+    return {
+        "statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__crm_{uuid4().hex}__",
+    }
+
+
 def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
         settings = get_settings()
+        connect_args = _asyncpg_connect_args(settings.database_url)
         _engine = create_async_engine(
             settings.database_url,
             pool_size=settings.database_pool_size,
             max_overflow=settings.database_max_overflow,
             pool_pre_ping=True,
             future=True,
+            connect_args=connect_args,
         )
     return _engine
 

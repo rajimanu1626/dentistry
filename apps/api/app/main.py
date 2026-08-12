@@ -24,7 +24,7 @@ from app.core.errors import (
     validation_exception_handler,
 )
 from app.core.logging import configure_logging, get_logger
-from app.routers import auth, health, media, patients, platform, visits
+from app.routers import auth, dashboard, health, media, patients, platform, visits
 from app.sharing import router as sharing_router
 
 
@@ -61,7 +61,14 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-ID",
+            "X-Clinic-Id",
+            "Accept",
+            "Accept-Language",
+        ],
     )
 
     app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
@@ -71,6 +78,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(dashboard.router)
     app.include_router(platform.router)
     app.include_router(patients.router)
     app.include_router(visits.visits_router)

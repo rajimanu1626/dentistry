@@ -9,20 +9,23 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.storage import ObjectStorage, get_storage
 from app.core.config import Settings, get_settings
 from app.core.errors import ForbiddenError
 from app.db.session import get_session
-from app.middleware.auth import Principal, require_clinical_access
+from app.middleware.auth import Principal, require_clinical_access, require_role
 from app.models import PatientMedia
+from app.models.enums import PATIENT_WRITE_ROLES, enum_str
 from app.schemas.patients import (
     PatientCreate,
     PatientPage,
     PatientPublic,
     PatientUpdate,
 )
+from app.services import media as media_service
 from app.services import patients as service
 from app.services import visits as visits_service
-from app.services.pdf import render_pdf
+from app.services.pdf import PDF_MEDIA_FIGURES_BLOCK_HTML, render_pdf
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -68,7 +71,7 @@ async def list_patients(
 @router.post("", response_model=PatientPublic, status_code=status.HTTP_201_CREATED)
 async def create_patient(
     body: PatientCreate,
-    principal: Principal = Depends(require_clinical_access),
+    principal: Principal = Depends(require_role(*PATIENT_WRITE_ROLES)),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> PatientPublic:
@@ -111,8 +114,10 @@ async def delete_patient(
 @router.get("/{patient_id}/history/pdf", response_class=Response)
 async def render_patient_history_pdf(
     patient_id: UUID,
+    include_media: bool = Query(default=False),
     principal: Principal = Depends(require_clinical_access),
     session: AsyncSession = Depends(get_session),
+    storage: ObjectStorage = Depends(get_storage),
 ) -> Response:
     _require_clinic(principal)
     patient = await service.get_patient(
@@ -121,25 +126,28 @@ async def render_patient_history_pdf(
         settings=get_settings(),
     )
     visits = await visits_service.list_visits_for_patient(session, patient_id=patient_id)
-    media_rows = await session.execute(
-        select(PatientMedia)
-        .where(PatientMedia.patient_id == patient_id)
-        .order_by(PatientMedia.created_at.asc())
-    )
-    media_by_visit: dict[str, list[dict[str, str]]] = {}
-    for row in media_rows.scalars().all():
-        if row.visit_id is None:
-            continue
-        key = str(row.visit_id)
-        media_by_visit.setdefault(key, []).append(
-            {
-                "kind": row.kind.value,
-                "filename": row.object_key.split("/")[-1] if row.object_key else "-",
-                "captured_at_human": _humanize_datetime(
-                    (row.taken_at or row.created_at).isoformat()
-                ),
-            }
+    media_by_visit: dict[str, list[dict[str, str | None]]] = {}
+    if include_media:
+        media_rows = await session.execute(
+            select(PatientMedia)
+            .where(PatientMedia.patient_id == patient_id)
+            .order_by(PatientMedia.created_at.asc())
         )
+        for row in media_rows.scalars().all():
+            if row.visit_id is None:
+                continue
+            key = str(row.visit_id)
+            media_by_visit.setdefault(key, []).append(
+                await media_service.pdf_embed_media_item(
+                    storage,
+                    kind=enum_str(row.kind),
+                    object_key=row.object_key or "",
+                    mime_type=row.mime_type or "image/jpeg",
+                    captured_at_human=_humanize_datetime(
+                        (row.taken_at or row.created_at).isoformat()
+                    ),
+                )
+            )
     visit_blocks: list[dict[str, object]] = []
     for visit in visits:
         prescriptions = await visits_service.list_prescriptions_for_visit(
@@ -186,18 +194,21 @@ async def render_patient_history_pdf(
             <p>{{ rx.notes or '' }}</p>
           {% endfor %}
         {% endif %}
+    """
+    if include_media:
+        html_template += """
         <p><strong>Media attached:</strong></p>
         {% if block.media_items|length == 0 %}
           <p>None</p>
         {% else %}
-          <ul>
-            {% for media in block.media_items %}
-              <li>
-                {{ media.kind }} - {{ media.filename }} - {{ media.captured_at_human }}
-              </li>
-            {% endfor %}
-          </ul>
+          <div>
+    """
+        html_template += PDF_MEDIA_FIGURES_BLOCK_HTML
+        html_template += """
+          </div>
         {% endif %}
+    """
+    html_template += """
       {% endfor %}
     </body></html>
     """

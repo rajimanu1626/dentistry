@@ -74,10 +74,13 @@ jobs:
         working-directory: apps/web
         env:
           VITE_API_BASE_URL: ${{ secrets.PROD_API_BASE_URL }}
+          VITE_NEON_AUTH_URL: /neon-auth
         run: bun run build
       - name: Publish to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/web/dist --project-name=clinic-crm-web
+          # Deploy from apps/web so ./functions (Neon Auth proxy) is bundled.
+          workingDirectory: apps/web
+          command: pages deploy dist --project-name=clinic-crm-web

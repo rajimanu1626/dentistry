@@ -12,6 +12,7 @@ from app.core.errors import ForbiddenError, ValidationAppError
 from app.db.session import get_session
 from app.middleware.auth import Principal, require_clinical_access
 from app.models import MediaKind
+from app.models.enums import enum_str
 from app.schemas.media import PatientMediaWithUrl
 from app.services import media as service
 
@@ -65,7 +66,7 @@ async def upload_media(
         clinic_id=row.clinic_id,
         patient_id=row.patient_id,
         visit_id=row.visit_id,
-        kind=row.kind.value,
+        kind=enum_str(row.kind),
         mime_type=row.mime_type,
         width_px=row.width_px,
         height_px=row.height_px,
@@ -90,7 +91,7 @@ async def list_media(
             clinic_id=r.clinic_id,
             patient_id=r.patient_id,
             visit_id=r.visit_id,
-            kind=r.kind.value,
+            kind=enum_str(r.kind),
             mime_type=r.mime_type,
             width_px=r.width_px,
             height_px=r.height_px,

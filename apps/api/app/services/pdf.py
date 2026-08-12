@@ -75,3 +75,52 @@ def render_pdf(
 
 def utc_now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+
+# Shared Jinja fragment for embedding visit media images in PDFs.
+PDF_MEDIA_FIGURES_HTML = """
+            {% for media in media_items %}
+              <figure style="margin: 0 0 16px; page-break-inside: avoid;">
+                <figcaption style="font-size: 11px; color: #555; margin-bottom: 6px;">
+                  {{ media.kind }} · {{ media.captured_at_human }}
+                </figcaption>
+                {% if media.data_url %}
+                  <img src="{{ media.data_url | safe }}" alt="{{ media.kind }}"
+                       style="max-width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;" />
+                {% else %}
+                  <p style="font-size: 11px; color: #777;">{{ media.filename }} (preview unavailable)</p>
+                {% endif %}
+              </figure>
+            {% endfor %}
+"""
+
+PDF_MEDIA_FIGURES_BLOCK_HTML = """
+            {% for media in block.media_items %}
+              <figure style="margin: 0 0 16px; page-break-inside: avoid;">
+                <figcaption style="font-size: 11px; color: #555; margin-bottom: 6px;">
+                  {{ media.kind }} · {{ media.captured_at_human }}
+                </figcaption>
+                {% if media.data_url %}
+                  <img src="{{ media.data_url | safe }}" alt="{{ media.kind }}"
+                       style="max-width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;" />
+                {% else %}
+                  <p style="font-size: 11px; color: #777;">{{ media.filename }} (preview unavailable)</p>
+                {% endif %}
+              </figure>
+            {% endfor %}
+"""
+
+PDF_MEDIA_SECTION_HTML = (
+    """
+        <h2>Media attached</h2>
+        {% if media_items|length == 0 %}
+          <p>No media attached for this visit.</p>
+        {% else %}
+          <div>
+    """
+    + PDF_MEDIA_FIGURES_HTML
+    + """
+          </div>
+        {% endif %}
+    """
+)

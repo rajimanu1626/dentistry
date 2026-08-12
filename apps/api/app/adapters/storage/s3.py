@@ -64,6 +64,15 @@ class S3Storage(ObjectStorage):
             ),
         )
 
+    async def get_object(self, object_key: str) -> tuple[bytes, str]:
+        def _get() -> tuple[bytes, str]:
+            response = self._client.get_object(Bucket=self._bucket, Key=object_key)
+            body = response["Body"].read()
+            mime = response.get("ContentType") or "application/octet-stream"
+            return body, mime
+
+        return await asyncio.get_running_loop().run_in_executor(None, _get)
+
     async def delete_object(self, object_key: str) -> None:
         await asyncio.get_running_loop().run_in_executor(
             None,

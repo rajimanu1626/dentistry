@@ -7,21 +7,31 @@ Every external endpoint and credential is env-driven so the stack stays portable
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AppEnv = Literal["development", "test", "staging", "production"]
-IdentityProvider = Literal["local", "supabase", "cognito"]
+IdentityProvider = Literal["local", "supabase", "cognito", "neon"]
 SignupMode = Literal["closed", "invite", "bootstrap", "open"]
+
+# In the monorepo: apps/api/app/core/config.py -> API root is parents[2], repo is parents[4].
+# In the Docker image: /app/app/core/config.py -> API root is parents[2] only.
+_CONFIG_FILE = Path(__file__).resolve()
+_API_ROOT = _CONFIG_FILE.parents[2]
+_REPO_ROOT = _CONFIG_FILE.parents[4] if len(_CONFIG_FILE.parents) > 4 else None
+_ENV_FILES = [str(_API_ROOT / ".env")]
+if _REPO_ROOT is not None:
+    _ENV_FILES.append(str(_REPO_ROOT / ".env"))
 
 
 class Settings(BaseSettings):
     """Strongly-typed application settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=tuple(_ENV_FILES),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
