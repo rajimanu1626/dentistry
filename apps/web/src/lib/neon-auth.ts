@@ -4,37 +4,16 @@
  * Production uses a same-origin `/neon-auth` proxy (Cloudflare Pages Function)
  * so Safari can store the session cookie as first-party. Direct neonauth.*
  * URLs break under ITP.
+ *
+ * We use plain `fetch` for sign-in/out and JWT retrieval. The @neondatabase/auth
+ * SDK triggers POST /get-session after sign-in, which Neon Managed Auth rejects
+ * with HTTP 405 unless deferSessionRefresh is enabled server-side.
  */
 
 import { createAuthClient } from '@neondatabase/neon-js/auth';
 
-/** Better Auth vanilla client surface we actually call. */
+/** Better Auth vanilla client surface for password change only. */
 type NeonBetterAuthClient = {
-  token: () => Promise<{ data?: { token?: string } | null; error?: unknown }>;
-  getSession: (opts?: {
-    fetchOptions?: { onSuccess?: (ctx: { response: Response }) => void };
-  }) => Promise<{
-    data?: {
-      session?: { token?: string } | null;
-    } | null;
-    error?: unknown;
-  }>;
-  signIn: {
-    email: (args: {
-      email: string;
-      password: string;
-      fetchOptions?: { onSuccess?: (ctx: { response: Response }) => void };
-    }) => Promise<{ data?: unknown; error?: unknown }>;
-  };
-  signUp: {
-    email: (args: {
-      name: string;
-      email: string;
-      password: string;
-      fetchOptions?: { onSuccess?: (ctx: { response: Response }) => void };
-    }) => Promise<{ data?: unknown; error?: unknown }>;
-  };
-  signOut: () => Promise<unknown>;
   changePassword: (args: {
     currentPassword: string;
     newPassword: string;
@@ -78,6 +57,22 @@ export function requireNeonAuthClient(): NeonBetterAuthClient {
   return client;
 }
 
+function neonAuthBaseUrl(): string {
+  const base = resolveNeonAuthUrl();
+  if (!base) {
+    throw new Error('Neon Auth is not configured. Set VITE_NEON_AUTH_URL for this build.');
+  }
+  return base;
+}
+
+async function neonAuthFetch(path: string, init?: RequestInit): Promise<Response> {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  return fetch(`${neonAuthBaseUrl()}${normalized}`, {
+    credentials: 'include',
+    ...init,
+  });
+}
+
 function b64UrlToJson(segment: string): Record<string, unknown> | null {
   try {
     const padded = segment.replace(/-/g, '+').replace(/_/g, '/');
@@ -99,30 +94,17 @@ export function isJwksAccessToken(token: string | null | undefined): boolean {
   return alg === 'EdDSA' || alg === 'RS256' || alg === 'ES256';
 }
 
-function captureJwtOnSuccess(store: { jwt: string | null }) {
+async function readAuthError(res: Response): Promise<{ message: string; code: string }> {
+  const body = (await res.json().catch(() => null)) as { message?: string; code?: string } | null;
   return {
-    onSuccess: (ctx: { response: Response }) => {
-      const header = ctx.response.headers.get('set-auth-jwt');
-      if (header && isJwksAccessToken(header)) {
-        store.jwt = header;
-      }
-    },
+    message: body?.message?.trim() || `Authentication failed (HTTP ${res.status}).`,
+    code: body?.code ?? 'unauthorized',
   };
 }
 
-/**
- * Neon Managed Auth allows GET /get-session only. Newer Better Auth clients may
- * POST /get-session when `needsRefresh` is set, which returns HTTP 405
- * (`METHOD_NOT_ALLOWED_DEFER_SESSION_REQUIRED`). Prefer plain GET fetches for JWTs.
- */
+/** Fetch a JWKS JWT using GET /token then GET /get-session (never POST). */
 async function fetchJwtViaGet(): Promise<string | null> {
-  const base = resolveNeonAuthUrl();
-  if (!base) return null;
-
-  const tokenRes = await fetch(`${base}/token`, {
-    method: 'GET',
-    credentials: 'include',
-  });
+  const tokenRes = await neonAuthFetch('/token', { method: 'GET' });
   if (tokenRes.ok) {
     const body = (await tokenRes.json().catch(() => null)) as { token?: string } | null;
     const token = body?.token;
@@ -131,10 +113,7 @@ async function fetchJwtViaGet(): Promise<string | null> {
     }
   }
 
-  const sessionRes = await fetch(`${base}/get-session`, {
-    method: 'GET',
-    credentials: 'include',
-  });
+  const sessionRes = await neonAuthFetch('/get-session', { method: 'GET' });
   if (sessionRes.ok) {
     const header = sessionRes.headers.get('set-auth-jwt');
     if (typeof header === 'string' && isJwksAccessToken(header)) {
@@ -154,112 +133,88 @@ async function fetchJwtViaGet(): Promise<string | null> {
 
 /** Fetch a short-lived JWT for Authorization: Bearer. */
 export async function fetchNeonAccessToken(): Promise<string> {
-  // Always try GET first — avoids the Better Auth POST /get-session → 405 trap.
   const viaGet = await fetchJwtViaGet();
   if (viaGet) return viaGet;
-
-  // Fallback through the SDK (may throw AuthApiError on non-2xx).
-  try {
-    const client = requireNeonAuthClient();
-    const { data, error } = await client.token();
-    const token = data?.token;
-    if (!error && typeof token === 'string' && isJwksAccessToken(token)) {
-      return token;
-    }
-    if (error) {
-      throw new Error(error instanceof Error ? error.message : 'Failed to obtain Neon Auth token.');
-    }
-  } catch (err) {
-    const msg = neonAuthErrorMessage(err);
-    if (/405|METHOD_NOT_ALLOWED/i.test(msg)) {
-      throw new Error(
-        'Neon Auth session refresh failed (HTTP 405). Hard-refresh and sign in again.',
-      );
-    }
-    throw err instanceof Error ? err : new Error(msg);
-  }
-
   throw new Error('Neon Auth did not return a JWT. Sign out, hard-refresh, and sign in again.');
 }
 
-/** Sign in and return a JWKS JWT (captures set-auth-jwt when present). */
+/** Sign in and return a JWKS JWT. Uses fetch only — no SDK session refresh. */
 export async function neonSignIn(email: string, password: string): Promise<string> {
-  const client = requireNeonAuthClient();
-  const captured = { jwt: null as string | null };
-  try {
-    const result = await client.signIn.email({
-      email,
-      password,
-      fetchOptions: captureJwtOnSuccess(captured),
-    });
-    if (result.error) {
-      throw Object.assign(new Error(neonAuthErrorMessage(result.error)), {
-        status: 401,
-        code: 'unauthorized',
-      });
-    }
-  } catch (err) {
-    if (err && typeof err === 'object' && 'status' in err && 'code' in err) {
-      throw Object.assign(new Error(neonAuthErrorMessage(err)), {
-        status: (err as { status?: number }).status ?? 401,
-        code: (err as { code?: string }).code ?? 'unauthorized',
-      });
-    }
-    throw Object.assign(new Error(neonAuthErrorMessage(err)), {
-      status: 401,
-      code: 'unauthorized',
+  const res = await neonAuthFetch('/sign-in/email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const headerJwt = res.headers.get('set-auth-jwt');
+  if (typeof headerJwt === 'string' && isJwksAccessToken(headerJwt)) {
+    return headerJwt;
+  }
+
+  if (!res.ok) {
+    const { message, code } = await readAuthError(res);
+    throw Object.assign(new Error(message), {
+      status: res.status === 401 ? 401 : res.status,
+      code,
     });
   }
-  if (captured.jwt) return captured.jwt;
-  return fetchNeonAccessToken();
+
+  const jwt = await fetchJwtViaGet();
+  if (jwt) return jwt;
+
+  throw new Error('Sign-in succeeded but Neon Auth did not return a JWT. Try again.');
 }
 
-/** Sign up and return a JWKS JWT. */
+/** Sign up and return a JWKS JWT. Uses fetch only — no SDK session refresh. */
 export async function neonSignUp(input: {
   email: string;
   password: string;
   name: string;
 }): Promise<string> {
-  const client = requireNeonAuthClient();
-  const captured = { jwt: null as string | null };
-  try {
-    const result = await client.signUp.email({
-      name: input.name,
+  const res = await neonAuthFetch('/sign-up/email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       email: input.email,
       password: input.password,
-      fetchOptions: captureJwtOnSuccess(captured),
-    });
-    if (result.error) {
-      throw Object.assign(new Error(neonAuthErrorMessage(result.error)), {
-        status: 400,
-        code: 'signup_failed',
-      });
-    }
-  } catch (err) {
-    if (err && typeof err === 'object' && 'code' in err) {
-      throw Object.assign(new Error(neonAuthErrorMessage(err)), {
-        status: (err as { status?: number }).status ?? 400,
-        code: (err as { code?: string }).code ?? 'signup_failed',
-      });
-    }
-    throw Object.assign(new Error(neonAuthErrorMessage(err)), {
-      status: 400,
-      code: 'signup_failed',
+      name: input.name,
+    }),
+  });
+
+  const headerJwt = res.headers.get('set-auth-jwt');
+  if (typeof headerJwt === 'string' && isJwksAccessToken(headerJwt)) {
+    return headerJwt;
+  }
+
+  if (!res.ok) {
+    const { message, code } = await readAuthError(res);
+    throw Object.assign(new Error(message), {
+      status: res.status === 400 ? 400 : res.status,
+      code: code === 'unauthorized' ? 'signup_failed' : code,
     });
   }
-  if (captured.jwt) return captured.jwt;
-  return fetchNeonAccessToken();
+
+  const jwt = await fetchJwtViaGet();
+  if (jwt) return jwt;
+
+  throw new Error('Sign-up succeeded but Neon Auth did not return a JWT. Try signing in.');
+}
+
+/** Sign out of Neon Auth (fetch only). */
+export async function neonSignOut(): Promise<void> {
+  await neonAuthFetch('/sign-out', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  }).catch(() => {
+    // Best-effort; local session is cleared either way.
+  });
 }
 
 export function neonAuthErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error) {
     const msg = (error as { message?: unknown }).message;
-    if (typeof msg === 'string' && msg.trim()) {
-      if (/405|METHOD_NOT_ALLOWED_DEFER/i.test(msg)) {
-        return 'Sign-in hit a Neon Auth session refresh error. Please hard-refresh and try again.';
-      }
-      return msg;
-    }
+    if (typeof msg === 'string' && msg.trim()) return msg;
   }
   if (error instanceof Error && error.message) return error.message;
   return 'Authentication failed.';
