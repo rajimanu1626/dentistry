@@ -1,15 +1,15 @@
-import { apiClient } from "@/lib/api";
+import { apiClient } from '@/lib/api';
 
 export type PdfOptions = {
-	includeMedia?: boolean;
+  includeMedia?: boolean;
 };
 
 export function pdfApiPath(path: string, options?: PdfOptions): string {
-	if (!options?.includeMedia) {
-		return path;
-	}
-	const separator = path.includes("?") ? "&" : "?";
-	return `${path}${separator}include_media=true`;
+  if (!options?.includeMedia) {
+    return path;
+  }
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}include_media=true`;
 }
 
 /**
@@ -19,43 +19,38 @@ export function pdfApiPath(path: string, options?: PdfOptions): string {
  * blob is ready. Do not pass `noopener` on that first window.open — it prevents
  * the opener from setting `popup.location`.
  */
-export async function openProtectedPdf(
-	path: string,
-	options?: PdfOptions,
-): Promise<void> {
-	const popup = window.open("", "_blank");
-	if (popup) {
-		popup.document.title = "Loading PDF…";
-		popup.document.body.innerHTML =
-			'<p style="font-family:system-ui,sans-serif;padding:2rem;color:#334155">Generating PDF…</p>';
-	}
+export async function openProtectedPdf(path: string, options?: PdfOptions): Promise<void> {
+  const popup = window.open('', '_blank');
+  if (popup) {
+    popup.document.title = 'Loading PDF…';
+    popup.document.body.innerHTML =
+      '<p style="font-family:system-ui,sans-serif;padding:2rem;color:#334155">Generating PDF…</p>';
+  }
 
-	try {
-		const blob = await apiClient.getBlob(pdfApiPath(path, options));
-		const pdfBlob =
-			blob.type === "application/pdf"
-				? blob
-				: new Blob([blob], { type: "application/pdf" });
-		const url = URL.createObjectURL(pdfBlob);
+  try {
+    const blob = await apiClient.getBlob(pdfApiPath(path, options));
+    const pdfBlob =
+      blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
+    const url = URL.createObjectURL(pdfBlob);
 
-		if (popup && !popup.closed) {
-			popup.location.replace(url);
-		} else {
-			const opened = window.open(url, "_blank");
-			if (!opened) {
-				const link = document.createElement("a");
-				link.href = url;
-				link.target = "_blank";
-				link.rel = "noopener noreferrer";
-				link.click();
-			}
-		}
+    if (popup && !popup.closed) {
+      popup.location.replace(url);
+    } else {
+      const opened = window.open(url, '_blank');
+      if (!opened) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.click();
+      }
+    }
 
-		window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
-	} catch (err) {
-		if (popup && !popup.closed) {
-			popup.close();
-		}
-		throw err;
-	}
+    window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+  } catch (err) {
+    if (popup && !popup.closed) {
+      popup.close();
+    }
+    throw err;
+  }
 }

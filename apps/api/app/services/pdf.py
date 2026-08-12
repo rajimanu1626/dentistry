@@ -78,36 +78,45 @@ def utc_now_iso() -> str:
 
 
 # Shared Jinja fragment for embedding visit media images in PDFs.
-PDF_MEDIA_FIGURES_HTML = """
-            {% for media in media_items %}
+_PDF_MEDIA_IMG_STYLE = (
+    "max-width: 100%; max-height: 300px; object-fit: contain; "
+    "border: 1px solid #ddd; border-radius: 4px;"
+)
+
+PDF_MEDIA_FIGURES_HTML = f"""
+            {{% for media in media_items %}}
               <figure style="margin: 0 0 16px; page-break-inside: avoid;">
                 <figcaption style="font-size: 11px; color: #555; margin-bottom: 6px;">
-                  {{ media.kind }} · {{ media.captured_at_human }}
+                  {{{{ media.kind }}}} · {{{{ media.captured_at_human }}}}
                 </figcaption>
-                {% if media.data_url %}
-                  <img src="{{ media.data_url | safe }}" alt="{{ media.kind }}"
-                       style="max-width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;" />
-                {% else %}
-                  <p style="font-size: 11px; color: #777;">{{ media.filename }} (preview unavailable)</p>
-                {% endif %}
+                {{% if media.data_url %}}
+                  <img src="{{{{ media.data_url | safe }}}}" alt="{{{{ media.kind }}}}"
+                       style="{_PDF_MEDIA_IMG_STYLE}" />
+                {{% else %}}
+                  <p style="font-size: 11px; color: #777;">
+                    {{{{ media.filename }}}} (preview unavailable)
+                  </p>
+                {{% endif %}}
               </figure>
-            {% endfor %}
+            {{% endfor %}}
 """
 
-PDF_MEDIA_FIGURES_BLOCK_HTML = """
-            {% for media in block.media_items %}
+PDF_MEDIA_FIGURES_BLOCK_HTML = f"""
+            {{% for media in block.media_items %}}
               <figure style="margin: 0 0 16px; page-break-inside: avoid;">
                 <figcaption style="font-size: 11px; color: #555; margin-bottom: 6px;">
-                  {{ media.kind }} · {{ media.captured_at_human }}
+                  {{{{ media.kind }}}} · {{{{ media.captured_at_human }}}}
                 </figcaption>
-                {% if media.data_url %}
-                  <img src="{{ media.data_url | safe }}" alt="{{ media.kind }}"
-                       style="max-width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;" />
-                {% else %}
-                  <p style="font-size: 11px; color: #777;">{{ media.filename }} (preview unavailable)</p>
-                {% endif %}
+                {{% if media.data_url %}}
+                  <img src="{{{{ media.data_url | safe }}}}" alt="{{{{ media.kind }}}}"
+                       style="{_PDF_MEDIA_IMG_STYLE}" />
+                {{% else %}}
+                  <p style="font-size: 11px; color: #777;">
+                    {{{{ media.filename }}}} (preview unavailable)
+                  </p>
+                {{% endif %}}
               </figure>
-            {% endfor %}
+            {{% endfor %}}
 """
 
 PDF_MEDIA_SECTION_HTML = (

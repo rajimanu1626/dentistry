@@ -62,7 +62,7 @@ class _LocalCredStore:
             return path
 
         candidates = [
-            Path("/tmp/clinic-crm/local_credentials.json"),
+            Path("/tmp/clinic-crm/local_credentials.json"),  # noqa: S108
             Path.home() / ".clinic-crm" / "local_credentials.json",
             Path(__file__).resolve().parents[2] / ".local_credentials.json",
         ]
@@ -75,7 +75,7 @@ class _LocalCredStore:
                 return candidate
             except OSError:
                 continue
-        return Path("/tmp/clinic-crm-local_credentials.json")
+        return Path("/tmp/clinic-crm-local_credentials.json")  # noqa: S108
 
     def _load(self) -> None:
         if not self._path.exists():
@@ -276,9 +276,7 @@ async def ensure_user_from_identity(
                 select(User.id).where(User.email == token.email, User.id != user.id)
             )
             if conflict.scalar_one_or_none() is not None:
-                raise ConflictError(
-                    "Another account already uses this email. Contact support."
-                )
+                raise ConflictError("Another account already uses this email. Contact support.")
             user.email = token.email
             dirty = True
         name = _name_from_token(token)
@@ -394,9 +392,7 @@ async def accept_invite_for_user(
     if user is None or not user.is_active:
         raise UnauthorizedError("Unknown or inactive user.")
 
-    invite = await _resolve_invite_by_token(
-        session, raw_token=invite_token, settings=settings
-    )
+    invite = await _resolve_invite_by_token(session, raw_token=invite_token, settings=settings)
     _validate_invite_row(invite, email=email)
 
     existing_membership = await session.execute(
@@ -415,9 +411,7 @@ async def accept_invite_for_user(
     if full_name:
         user.full_name = full_name
 
-    session.add(
-        ClinicMember(clinic_id=invite.clinic_id, user_id=user.id, role=invite.role)
-    )
+    session.add(ClinicMember(clinic_id=invite.clinic_id, user_id=user.id, role=invite.role))
     invite.accepted_at = datetime.now(UTC)
 
     clinic_row = await session.execute(select(Clinic).where(Clinic.id == invite.clinic_id))
@@ -720,8 +714,7 @@ async def leave_clinic(
         )
         if int(owner_count.scalar_one()) <= 1:
             raise ForbiddenError(
-                "You are the only owner of this clinic. "
-                "Invite another owner before leaving."
+                "You are the only owner of this clinic. Invite another owner before leaving."
             )
 
     await session.delete(membership)
